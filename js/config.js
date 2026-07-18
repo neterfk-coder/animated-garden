@@ -16,8 +16,8 @@
    ============================================================ */
 
 const CONFIG = {
-  SUPABASE_URL: "TU_SUPABASE_URL",        // ej: "https://abcd1234.supabase.co"
-  SUPABASE_ANON_KEY: "TU_SUPABASE_ANON_KEY",
+  SUPABASE_URL: "https://rplylvzrwnhgdaskdkrn.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwbHlsdnpyd25oZ2Rhc2tka3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MDQ4OTAsImV4cCI6MjA5OTk4MDg5MH0.8O_u3-qG5mNNNb40ipn8xfrPGo0gN2RuHP-ayqCL7Ec",
 
   // Ruta del endpoint serverless de IA (Vercel). Déjalo así.
   AI_ENDPOINT: "/api/analyze",

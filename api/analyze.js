@@ -1,9 +1,9 @@
 /* ============================================================
    /api/analyze — función serverless (Vercel).
-   Analiza la frase con Claude (API de Anthropic) y devuelve:
+   Analiza la frase con Groq (modelos Llama) y devuelve:
      { sentiment, anger, abstractness, complexity, keyword }
 
-   Configuración: añade la variable de entorno ANTHROPIC_API_KEY
+   Configuración: añade la variable de entorno GROQ_API_KEY
    en el panel de Vercel. Si no existe, responde 501 y el
    frontend usa automáticamente el analizador léxico local.
    ============================================================ */
@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return res.status(501).json({ error: "IA no configurada" });
   }
@@ -24,16 +24,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "llama-3.3-70b-versatile",
         max_tokens: 200,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "user",
@@ -50,12 +50,9 @@ export default async function handler(req, res) {
       }),
     });
 
-    if (!r.ok) throw new Error(`Anthropic API ${r.status}`);
+    if (!r.ok) throw new Error(`Groq API ${r.status}`);
     const data = await r.json();
-    const text = (data.content || [])
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("");
+    const text = data.choices?.[0]?.message?.content || "";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
 

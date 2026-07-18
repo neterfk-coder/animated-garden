@@ -65,9 +65,9 @@ Listo. El indicador de la esquina superior derecha cambiará a **◉ jardín com
 1. Sube este repositorio a GitHub.
 2. En [vercel.com](https://vercel.com) → **New Project** → importa el repo → **Deploy** (no necesita build).
 3. *(Opcional, para el análisis con IA)* En **Settings → Environment Variables** añade:
-   - `ANTHROPIC_API_KEY` = tu clave de [console.anthropic.com](https://console.anthropic.com)
+   - `GROQ_API_KEY` = tu clave de [console.groq.com](https://console.groq.com)
 
-Con la clave, `/api/analyze` analiza cada frase con **Claude** (sentimiento, rabia, abstracción, complejidad, palabra clave). **Sin la clave, la app funciona igual** con el analizador léxico local en español (`js/lexicon.js` + `js/semantics.js`).
+Con la clave, `/api/analyze` analiza cada frase con **Groq** (sentimiento, rabia, abstracción, complejidad, palabra clave). **Sin la clave, la app funciona igual** con el analizador léxico local en español (`js/lexicon.js` + `js/semantics.js`).
 
 ### Alternativa: desplegar en Render
 
@@ -90,7 +90,7 @@ jardin-semantico/
 │   ├── garden.js         # render: viento, día/noche, polen, raíces
 │   ├── ui.js             # siembra, ficha de herbario, avisos
 │   └── main.js           # arranque
-├── api/analyze.js        # serverless Vercel → API de Anthropic (opcional)
+├── api/analyze.js        # serverless Vercel → API de Groq (opcional)
 ├── supabase/schema.sql   # tabla + RLS + realtime, listo para pegar
 ├── vercel.json
 ├── render.yaml
@@ -103,14 +103,14 @@ jardin-semantico/
 - **L-systems (sistemas de Lindenmayer)** con reglas estocásticas deterministas y tropismos.
 - **PRNG mulberry32** para germinación reproducible (misma frase → misma planta).
 - **Supabase** (Postgres + RLS + Realtime) para el jardín compartido.
-- **API de Anthropic (Claude)** *(opcional)* para el análisis semántico.
+- **API de Groq (Llama)** *(opcional)* para el análisis semántico.
 - **Vercel** (hosting + serverless) o **Render** (estático).
 
 ## 🙏 Atribuciones
 
 - [Supabase JS v2](https://github.com/supabase/supabase-js) — cliente de base de datos (CDN jsDelivr), licencia MIT.
 - Tipografías de [Google Fonts](https://fonts.google.com): **Italiana** (Santiago Orozco, OFL), **Figtree** (Erik Kennedy, OFL), **Spline Sans Mono** (SharpType/Google, OFL).
-- **API de Anthropic (Claude)** — análisis de sentimiento opcional.
+- **API de Groq (Llama)** — análisis de sentimiento opcional.
 - Los L-systems se basan en el trabajo clásico de Aristid Lindenmayer y el libro *The Algorithmic Beauty of Plants* (Prusinkiewicz & Lindenmayer, 1990); la implementación es propia.
 - Todo el código restante fue escrito durante el período oficial del hackathon. Se utilizó asistencia de IA (Claude, de Anthropic) en el desarrollo, declarado conforme a las reglas del evento.
 
