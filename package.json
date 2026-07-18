@@ -1,0 +1,9 @@
+{
+  "name": "jardin-semantico",
+  "version": "1.0.0",
+  "description": "Un invernadero digital colectivo donde las frases germinan en plantas. Hack The Arts 2026.",
+  "scripts": {
+    "dev": "npx serve ."
+  },
+  "license": "MIT"
+}

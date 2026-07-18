@@ -1,0 +1,9 @@
+# Despliegue en Render como sitio estático (alternativa a Vercel).
+# Nota: Render estático NO ejecuta la función /api/analyze;
+# la app usará el analizador léxico local automáticamente.
+services:
+  - type: web
+    name: jardin-semantico
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .

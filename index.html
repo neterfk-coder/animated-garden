@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jardín Semántico — donde las palabras germinan</title>
+  <meta name="description" content="Un invernadero digital colectivo donde cada frase que escribes germina en una planta única. Arte que no podría existir sin la tecnología." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Figtree:wght@300;400;500;600&family=Spline+Sans+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌿</text></svg>" />
+</head>
+<body>
+
+  <!-- Lienzo del jardín (ocupa toda la pantalla) -->
+  <canvas id="garden" aria-label="Jardín de plantas generadas por frases"></canvas>
+
+  <!-- Velo de entrada -->
+  <div id="intro" class="intro">
+    <div class="intro__inner">
+      <p class="intro__eyebrow">Invernadero colectivo · nº 001</p>
+      <h1 class="intro__title">Jardín<br/>Semántico</h1>
+      <p class="intro__lede">Aquí no se plantan semillas. Se plantan frases.<br/>
+      Escribe algo — un recuerdo, una queja, un verso — y míralo germinar.</p>
+      <button id="enter-btn" class="btn btn--gold">Entrar al jardín</button>
+    </div>
+  </div>
+
+  <!-- Cabecera -->
+  <header class="topbar" aria-hidden="true">
+    <div class="topbar__brand">
+      <span class="topbar__mark">Jardín Semántico</span>
+      <span class="topbar__sub">herbario vivo</span>
+    </div>
+    <div class="topbar__stats">
+      <div class="stat">
+        <span class="stat__num" id="stat-plants">0</span>
+        <span class="stat__label">especímenes</span>
+      </div>
+      <div class="stat">
+        <span class="stat__num" id="stat-mode">·</span>
+        <span class="stat__label" id="stat-mode-label">local</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Panel de siembra -->
+  <div class="sower" id="sower">
+    <form id="sow-form" class="sower__panel" autocomplete="off">
+      <label class="sower__label" for="phrase">Planta una frase</label>
+      <div class="sower__row">
+        <input
+          id="phrase"
+          name="phrase"
+          type="text"
+          maxlength="180"
+          placeholder="Escribe lo que estás pensando…"
+          aria-describedby="sower-hint"
+        />
+        <button type="submit" class="btn btn--gold" id="sow-btn">
+          <span class="btn__text">Germinar</span>
+        </button>
+      </div>
+      <p class="sower__hint" id="sower-hint">Tu frase decide la especie: su ánimo, su sintaxis y sus palabras se vuelven anatomía.</p>
+    </form>
+  </div>
+
+  <!-- Ficha de espécimen (herbario) -->
+  <aside class="specimen" id="specimen" aria-live="polite">
+    <div class="specimen__card">
+      <button class="specimen__close" id="specimen-close" aria-label="Cerrar ficha">×</button>
+      <p class="specimen__tag">Ficha de herbario</p>
+      <h2 class="specimen__latin" id="sp-latin">—</h2>
+      <p class="specimen__species" id="sp-species">—</p>
+      <dl class="specimen__data">
+        <div><dt>Sentimiento</dt><dd id="sp-sentiment">—</dd></div>
+        <div><dt>Complejidad</dt><dd id="sp-complexity">—</dd></div>
+        <div><dt>Germinó</dt><dd id="sp-date">—</dd></div>
+      </dl>
+      <div class="specimen__phrase-wrap">
+        <p class="specimen__phrase-label" id="sp-phrase-label">Polen (palabra clave)</p>
+        <p class="specimen__phrase" id="sp-phrase">—</p>
+      </div>
+      <p class="specimen__kin" id="sp-kin"></p>
+    </div>
+  </aside>
+
+  <!-- Aviso de germinación -->
+  <div class="toast" id="toast" role="status"></div>
+
+  <!-- Librería de Supabase (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <!-- Módulos del jardín (el orden importa) -->
+  <script src="js/config.js"></script>
+  <script src="js/lexicon.js"></script>
+  <script src="js/semantics.js"></script>
+  <script src="js/lsystem.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/garden.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
