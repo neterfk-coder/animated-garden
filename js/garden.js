@@ -499,6 +499,21 @@ const Garden = (() => {
     const budget = p.geo.totalLen * growth;
     if (budget <= 0) return;
 
+    // planta recién regada: reluce, y sus hojas sueltan destellos de agua
+    const watered = p.wateredUntil && t < p.wateredUntil;
+    if (watered) {
+      light = Math.min(1, light + 0.25);
+      if (!reduceMotion && p.geo.leaves.length && Math.random() < 0.08 && splashes.length < 80) {
+        const l = p.geo.leaves[(Math.random() * p.geo.leaves.length) | 0];
+        splashes.push({
+          glint: true,
+          x: baseX + l.x * scale + (Math.random() - 0.5) * 4,
+          y: baseY + l.y * scale,
+          vy: -0.12, life: 0.9,
+        });
+      }
+    }
+
     ctx.lineCap = "round";
 
     // tallos
@@ -791,6 +806,267 @@ const Garden = (() => {
     }
   }
 
+  /* ---------- Regadera con manguera ---------- */
+  const watering = {
+    active: false, spraying: false,
+    x: 0, y: 0, tx: 0, ty: 0,   // posición suavizada y objetivo (cursor)
+    pressure: 0.6, tilt: -0.12,
+  };
+  let water = [];      // gotas del chorro
+  let splashes = [];   // salpicaduras, ondas y destellos en hojas
+
+  const watererEl = document.getElementById("waterer");
+  const waterToggle = document.getElementById("water-toggle");
+  const waterSlider = document.getElementById("water-pressure");
+
+  if (waterToggle && waterSlider) {
+    const syncSlider = () => {
+      watering.pressure = waterSlider.value / 100;
+      const pct = waterSlider.value;
+      waterSlider.style.background =
+        `linear-gradient(90deg, rgba(201,162,39,0.85) ${pct}%, rgba(216,228,214,0.15) ${pct}%)`;
+    };
+    waterSlider.addEventListener("input", syncSlider);
+    syncSlider();
+
+    waterToggle.addEventListener("click", () => {
+      watering.active = !watering.active;
+      watering.spraying = false;
+      waterToggle.classList.toggle("is-on", watering.active);
+      waterToggle.setAttribute("aria-pressed", String(watering.active));
+      watererEl.classList.toggle("is-on", watering.active);
+      document.body.classList.toggle("is-watering", watering.active);
+      if (watering.active) {
+        watering.x = watering.tx = W * 0.6;
+        watering.y = watering.ty = H * 0.42;
+      }
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      watering.tx = e.clientX; watering.ty = e.clientY;
+    });
+    canvas.addEventListener("mousedown", (e) => {
+      if (watering.active) { watering.spraying = true; e.preventDefault(); }
+    });
+    window.addEventListener("mouseup", () => { watering.spraying = false; });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && watering.active) waterToggle.click();
+    });
+
+    // táctil
+    canvas.addEventListener("touchstart", (e) => {
+      if (!watering.active) return;
+      const t0 = e.touches[0];
+      watering.tx = t0.clientX; watering.ty = t0.clientY;
+      watering.spraying = true;
+      e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener("touchmove", (e) => {
+      if (!watering.active) return;
+      const t0 = e.touches[0];
+      watering.tx = t0.clientX; watering.ty = t0.clientY;
+      e.preventDefault();
+    }, { passive: false });
+    window.addEventListener("touchend", () => { watering.spraying = false; });
+  }
+
+  function spoutTip() {
+    // punta de la alcachofa, rotada según la inclinación de la regadera
+    const ox = -27, oy = -11;
+    const c = Math.cos(watering.tilt), s = Math.sin(watering.tilt);
+    return { x: watering.x + ox * c - oy * s, y: watering.y + ox * s + oy * c };
+  }
+
+  function updateWatering(t) {
+    if (!watering.active) return;
+
+    // la regadera persigue al cursor con inercia elegante
+    watering.x += (watering.tx - watering.x) * 0.14;
+    watering.y += (watering.ty - watering.y) * 0.14;
+    const targetTilt = watering.spraying
+      ? -(0.34 + watering.pressure * 0.34)
+      : -0.12;
+    watering.tilt += (targetTilt - watering.tilt) * 0.09;
+
+    // brotar agua
+    if (watering.spraying && water.length < 320) {
+      const tip = spoutTip();
+      const n = 2 + Math.round(watering.pressure * 8);
+      for (let i = 0; i < n; i++) {
+        const dir = Math.PI - (0.16 + (1 - watering.pressure) * 0.5)
+                  + (Math.random() - 0.5) * 0.16;
+        const sp = 2.2 + watering.pressure * 6.5 + Math.random() * 0.8;
+        water.push({
+          x: tip.x + (Math.random() - 0.5) * 3,
+          y: tip.y + (Math.random() - 0.5) * 3,
+          px: tip.x, py: tip.y,
+          vx: Math.cos(dir) * sp,
+          vy: Math.sin(dir) * sp,
+          life: 1,
+        });
+      }
+    }
+  }
+
+  function wetPlantsNear(xImpact, t) {
+    for (const p of plants) {
+      if (Math.abs(p.x * W - xImpact) < 36) p.wateredUntil = t + 5200;
+    }
+  }
+
+  function drawWater(t) {
+    // chorro
+    ctx.lineCap = "round";
+    for (let i = water.length - 1; i >= 0; i--) {
+      const d = water[i];
+      d.px = d.x; d.py = d.y;
+      d.vx += windNow * 0.015;
+      d.vy += 0.085;
+      d.x += d.vx; d.y += d.vy;
+      d.life -= 0.006;
+
+      if (d.y >= groundY + 2) {
+        // salpicadura + onda en el suelo, y las plantas cercanas se riegan
+        wetPlantsNear(d.x, t);
+        for (let k = 0; k < 2; k++) {
+          splashes.push({
+            x: d.x, y: groundY,
+            vx: (Math.random() - 0.5) * 2 + windNow * 0.5,
+            vy: -(0.7 + Math.random() * 1.5),
+            life: 0.6,
+          });
+        }
+        if (Math.random() < 0.4) {
+          splashes.push({ ripple: true, x: d.x, y: groundY + 2, r: 1.5, life: 0.55 });
+        }
+        water.splice(i, 1);
+        continue;
+      }
+      if (d.life <= 0 || d.x < -30) { water.splice(i, 1); continue; }
+
+      ctx.beginPath();
+      ctx.moveTo(d.px, d.py);
+      ctx.lineTo(d.x, d.y);
+      ctx.strokeStyle = `rgba(150, 205, 220, ${0.6 * d.life})`;
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+    }
+
+    // salpicaduras, ondas y destellos
+    for (let i = splashes.length - 1; i >= 0; i--) {
+      const s = splashes[i];
+      s.life -= 0.02;
+      if (s.life <= 0) { splashes.splice(i, 1); continue; }
+
+      if (s.ripple) {
+        s.r += 0.7;
+        ctx.beginPath();
+        ctx.ellipse(s.x, s.y, s.r, s.r * 0.28, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(150, 205, 220, ${0.35 * s.life})`;
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+      } else if (s.glint) {
+        s.y += s.vy;
+        const tw = 0.5 + 0.5 * Math.sin(t * 0.02 + s.x);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(196, 232, 240, ${0.7 * s.life * tw})`;
+        ctx.fill();
+      } else {
+        s.vy += 0.09;
+        s.x += s.vx; s.y += s.vy;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(150, 205, 220, ${0.65 * s.life})`;
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawWateringCan(t) {
+    if (!watering.active) return;
+    const { x, y } = watering;
+
+    // manguera: entra desde la esquina inferior derecha con caída natural
+    const ax = W + 30, ay = H - 8;
+    const dist = Math.hypot(ax - x, ay - y);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.bezierCurveTo(
+      ax - dist * 0.16, ay - 46 + Math.sin(t * 0.001) * 6,
+      x + 76 + Math.sin(t * 0.0013) * 8, y + Math.min(150, dist * 0.35),
+      x + 15, y + 5
+    );
+    ctx.strokeStyle = "rgba(24, 40, 30, 0.95)";
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(127, 169, 142, 0.3)";
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    // abrazadera de latón donde la manguera entra a la regadera
+    ctx.beginPath();
+    ctx.arc(x + 14, y + 4, 3.4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(201, 162, 39, 0.9)";
+    ctx.fill();
+
+    // cuerpo de la regadera
+    ctx.save();
+    ctx.translate(x, y);
+    if (watering.spraying) {
+      ctx.translate((Math.random() - 0.5) * watering.pressure * 1.2,
+                    (Math.random() - 0.5) * watering.pressure * 0.8);
+    }
+    ctx.rotate(watering.tilt);
+
+    // cuerpo
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 14, 9.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(16, 30, 22, 0.96)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(201, 162, 39, 0.75)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // asa superior
+    ctx.beginPath();
+    ctx.arc(1, -9, 7.5, Math.PI, 0);
+    ctx.strokeStyle = "rgba(201, 162, 39, 0.8)";
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // pico
+    ctx.beginPath();
+    ctx.moveTo(-11, -3);
+    ctx.lineTo(-25, -10);
+    ctx.strokeStyle = "rgba(20, 36, 27, 0.98)";
+    ctx.lineWidth = 4.2;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(201, 162, 39, 0.4)";
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // alcachofa (la boquilla de ducha)
+    ctx.beginPath();
+    ctx.arc(-27, -11, 3.6, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(201, 162, 39, 0.92)";
+    ctx.fill();
+    ctx.fillStyle = "rgba(16, 30, 22, 0.9)";
+    for (const [dx, dy] of [[-1.2, -0.6], [0.4, 0.8], [1.1, -0.9]]) {
+      ctx.beginPath();
+      ctx.arc(-27 + dx, -11 + dy, 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // brillo del cuerpo
+    ctx.beginPath();
+    ctx.ellipse(-4, -3.5, 5, 2.2, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(216, 228, 214, 0.08)";
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   /* ---------- Bucle ---------- */
   function frame(now) {
     const t = now;
@@ -808,6 +1084,9 @@ const Garden = (() => {
     updateBees(t);
     drawBees(t);
     drawPollen(t, light);
+    updateWatering(t);
+    drawWater(t);
+    drawWateringCan(t);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

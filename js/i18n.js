@@ -94,6 +94,9 @@ const I18N = (() => {
       "specimen.kinMany": "Sus raíces se entrelazan con {n} plantas de significado afín.",
       "specimen.close": "Cerrar ficha",
 
+      "water.toggle": "Regadera — riega tus plantas",
+      "water.pressure": "Presión del agua",
+
       "species.flor": "Flor de ánimo luminoso",
       "species.sauce": "Sauce de melancolía",
       "species.cactus": "Cactus de furia contenida",
@@ -196,6 +199,9 @@ const I18N = (() => {
       "specimen.kinOne": "Its roots intertwine with {n} plant of kindred meaning.",
       "specimen.kinMany": "Its roots intertwine with {n} plants of kindred meaning.",
       "specimen.close": "Close record",
+
+      "water.toggle": "Watering can — water your plants",
+      "water.pressure": "Water pressure",
 
       "species.flor": "Flower of radiant spirit",
       "species.sauce": "Willow of melancholy",

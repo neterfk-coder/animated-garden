@@ -142,6 +142,28 @@
     </form>
   </div>
 
+  <!-- Regadera -->
+  <div class="waterer" id="waterer">
+    <div class="waterer__slider-wrap">
+      <input
+        type="range" id="water-pressure" min="10" max="100" value="60"
+        data-i18n-title="water.pressure" title="Presión del agua"
+        data-i18n-aria-label="water.pressure" aria-label="Presión del agua"
+      />
+    </div>
+    <button class="waterer__toggle" id="water-toggle" type="button" aria-pressed="false"
+            data-i18n-title="water.toggle" title="Regadera — riega tus plantas">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="10" width="10" height="8" rx="2"/>
+        <path d="M6.5 10a3.5 3.5 0 0 1 7 0"/>
+        <path d="M14 13l6-5"/>
+        <circle cx="20.6" cy="7.4" r="1.4"/>
+        <path d="M19 10.5l-.7 1.2M21 10.8l-.4 1.3M22.6 9.6l.4 1.3"/>
+      </svg>
+    </button>
+  </div>
+
   <!-- Ficha de espécimen (herbario) -->
   <aside class="specimen" id="specimen" aria-live="polite">
     <div class="specimen__card">

@@ -448,6 +448,95 @@ body.is-entered .sower { opacity: 1; transform: translateX(-50%) translateY(0); 
   letter-spacing: 0.01em;
 }
 
+/* ---------- Regadera ---------- */
+.waterer {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 2.2rem;
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.9s var(--ease-soft) 0.9s, transform 0.9s var(--ease-soft) 0.9s;
+  pointer-events: none;
+}
+body.is-entered .waterer { opacity: 1; transform: none; pointer-events: auto; }
+
+.waterer__toggle {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: color 0.35s, border-color 0.35s, box-shadow 0.35s, transform 0.35s var(--ease-soft);
+}
+.waterer__toggle:hover { color: var(--ink); transform: translateY(-1px); }
+.waterer__toggle.is-on {
+  color: var(--brass-soft);
+  border-color: rgba(201, 162, 39, 0.6);
+  box-shadow: 0 0 26px rgba(201, 162, 39, 0.25);
+}
+.waterer__toggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+.waterer__slider-wrap {
+  height: 120px;
+  width: 46px;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateY(14px) scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.45s var(--ease-soft), transform 0.45s var(--ease-soft);
+}
+.waterer.is-on .waterer__slider-wrap {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+#water-pressure {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 110px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(216, 228, 214, 0.15);
+  outline: none;
+  transform: rotate(-90deg);
+  cursor: pointer;
+}
+#water-pressure::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--brass-soft);
+  border: 2px solid rgba(10, 18, 14, 0.9);
+  box-shadow: 0 0 12px rgba(201, 162, 39, 0.55);
+  transition: transform 0.2s;
+}
+#water-pressure::-webkit-slider-thumb:hover { transform: scale(1.15); }
+#water-pressure::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--brass-soft);
+  border: 2px solid rgba(10, 18, 14, 0.9);
+  box-shadow: 0 0 12px rgba(201, 162, 39, 0.55);
+}
+#water-pressure:focus-visible { outline: 2px solid var(--brass); outline-offset: 4px; }
+
+body.is-watering #garden { cursor: none; }
+
 /* ---------- Ficha de espécimen ---------- */
 .specimen {
   position: fixed;
@@ -595,6 +684,7 @@ body.is-entered .sower { opacity: 1; transform: translateX(-50%) translateY(0); 
 /* ---------- Móvil ---------- */
 @media (max-width: 640px) {
   .lang-switch { top: 1rem; right: 1rem; }
+  .waterer { right: 0.8rem; bottom: 11.5rem; }
   .topbar { padding: 1.1rem 1.2rem; }
   .topbar__stats { gap: 1.1rem; }
   .sower { bottom: 1rem; }
