@@ -21,6 +21,8 @@ const Garden = (() => {
   let drops = [];
   let petals = [];        // pétalos y semillas arrastrados por el viento
   let gusts = [];         // estelas visibles de viento
+  let grass = [];         // briznas de pasto en dos capas
+  let bees = [];          // abejas recolectoras
   let startTime = performance.now();
   let windNow = -0.7;     // negativo = hacia la izquierda
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -101,7 +103,22 @@ const Garden = (() => {
     canvas.style.width = W + "px"; canvas.style.height = H + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     groundY = H * 0.8;
+    seedGrass();
   }
+
+  /* ---------- Pasto ---------- */
+  function seedGrass() {
+    const n = Math.floor(W / 4.5);
+    grass = Array.from({ length: n }, () => ({
+      x: Math.random() * W,
+      yOff: Math.random() * (H - groundY) * 0.45,
+      h: 6 + Math.random() * 14,
+      tone: Math.random(),
+      ph: Math.random() * Math.PI * 2,
+      layer: Math.random() < 0.45 ? 0 : 1, // 0 = fondo (más oscuro)
+    }));
+  }
+
   window.addEventListener("resize", resize);
   resize();
 
@@ -245,19 +262,42 @@ const Garden = (() => {
   }
 
   function drawGround(light) {
-    const g = ctx.createLinearGradient(0, groundY - 20, 0, H);
-    g.addColorStop(0, "rgba(18, 32, 26, 0)");
-    g.addColorStop(0.25, "rgba(16, 27, 21, 0.9)");
-    g.addColorStop(1, "rgb(8, 13, 10)");
+    // pradera: banda de verde profundo que se funde con la tierra
+    const g = ctx.createLinearGradient(0, groundY - 24, 0, H);
+    g.addColorStop(0, "rgba(24, 46, 30, 0)");
+    g.addColorStop(0.18, `rgba(22, 44, 28, ${0.85 + light * 0.1})`);
+    g.addColorStop(0.55, "rgba(14, 30, 19, 0.96)");
+    g.addColorStop(1, "rgb(7, 14, 9)");
     ctx.fillStyle = g;
-    ctx.fillRect(0, groundY - 20, W, H - groundY + 20);
+    ctx.fillRect(0, groundY - 24, W, H - groundY + 24);
 
-    ctx.strokeStyle = `rgba(216, 228, 214, ${0.10 + light * 0.05})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, groundY);
-    ctx.lineTo(W, groundY);
-    ctx.stroke();
+    // resplandor suave del horizonte del prado
+    const glow = ctx.createLinearGradient(0, groundY - 14, 0, groundY + 10);
+    glow.addColorStop(0, "rgba(110, 158, 104, 0)");
+    glow.addColorStop(0.5, `rgba(110, 158, 104, ${0.07 + light * 0.06})`);
+    glow.addColorStop(1, "rgba(110, 158, 104, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, groundY - 14, W, 24);
+  }
+
+  function drawGrass(layer, t, light) {
+    for (const b of grass) {
+      if (b.layer !== layer) continue;
+      const y0 = groundY + 2 + b.yOff;
+      const bend = reduceMotion ? 0
+        : windNow * (b.h * 0.42) + Math.sin(t * 0.0016 + b.ph) * 1.6;
+      const dark = b.layer === 0;
+      const g1 = dark ? 56 + b.tone * 18 : 84 + b.tone * 26;
+      const g2 = dark ? 88 + b.tone * 22 : 132 + b.tone * 30;
+      const g3 = dark ? 60 + b.tone * 14 : 86 + b.tone * 22;
+      const alpha = (dark ? 0.5 : 0.72) * (0.65 + light * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(b.x, y0);
+      ctx.quadraticCurveTo(b.x + bend * 0.3, y0 - b.h * 0.6, b.x + bend, y0 - b.h);
+      ctx.strokeStyle = `rgba(${g1|0}, ${g2|0}, ${g3|0}, ${alpha})`;
+      ctx.lineWidth = dark ? 1 : 1.25;
+      ctx.stroke();
+    }
   }
 
   /* ---------- Raíces afines ---------- */
@@ -630,6 +670,127 @@ const Garden = (() => {
     }
   }
 
+  /* ---------- Abejas recolectoras ---------- */
+  function bloomWorldPos(p, b, t) {
+    const { baseX, baseY, scale } = plantTransform(p);
+    return {
+      x: sway(p, baseX + b.x * scale, baseY + b.y * scale, t),
+      y: baseY + b.y * scale,
+    };
+  }
+
+  function floweringPlants() {
+    const now = performance.now();
+    return plants.filter(p =>
+      p.geo.blooms.length > 0 && now - p.bornAt >= CONFIG.GERMINATION_MS
+    );
+  }
+
+  function pickFlower() {
+    const candidates = floweringPlants();
+    if (!candidates.length) return null;
+    const p = candidates[(Math.random() * candidates.length) | 0];
+    const b = p.geo.blooms[(Math.random() * p.geo.blooms.length) | 0];
+    return { p, b };
+  }
+
+  function updateBees(t) {
+    if (reduceMotion) return;
+
+    // población: hasta 4 abejas si hay flores abiertas
+    const want = Math.min(4, floweringPlants().length ? 2 + (plants.length >> 3) : 0);
+    while (bees.length < want) {
+      const target = pickFlower();
+      if (!target) break;
+      bees.push({
+        x: Math.random() * W, y: groundY - 80 - Math.random() * 120,
+        vx: 0, vy: 0, target, state: "fly",
+        hoverT: 0, orbit: Math.random() * Math.PI * 2,
+        ph: Math.random() * Math.PI * 2,
+      });
+    }
+    if (bees.length > want) bees.length = want;
+
+    for (const bee of bees) {
+      // si su flor desapareció del jardín, busca otra
+      if (!bee.target || !plants.includes(bee.target.p)) {
+        bee.target = pickFlower();
+        if (!bee.target) continue;
+      }
+      const goal = bloomWorldPos(bee.target.p, bee.target.b, t);
+
+      if (bee.state === "fly") {
+        const dx = goal.x - bee.x, dy = goal.y - bee.y;
+        const d = Math.hypot(dx, dy) || 1;
+        bee.vx += (dx / d) * 0.055 + windNow * 0.006;
+        bee.vy += (dy / d) * 0.055 + Math.sin(t * 0.004 + bee.ph) * 0.02;
+        const sp = Math.hypot(bee.vx, bee.vy);
+        if (sp > 1.7) { bee.vx *= 1.7 / sp; bee.vy *= 1.7 / sp; }
+        bee.x += bee.vx; bee.y += bee.vy;
+        if (d < 14) { bee.state = "hover"; bee.hoverT = 140 + Math.random() * 220; }
+      } else {
+        // revolotea alrededor de la corola mientras "recolecta"
+        bee.orbit += 0.055 + Math.sin(t * 0.001 + bee.ph) * 0.01;
+        const r = 9 + Math.sin(t * 0.0023 + bee.ph) * 3;
+        const hx = goal.x + Math.cos(bee.orbit) * r;
+        const hy = goal.y + Math.sin(bee.orbit * 1.3) * r * 0.55 - 3;
+        bee.vx = (hx - bee.x) * 0.16;
+        bee.vy = (hy - bee.y) * 0.16;
+        bee.x += bee.vx; bee.y += bee.vy;
+        if (--bee.hoverT <= 0) { bee.target = pickFlower(); bee.state = "fly"; }
+      }
+    }
+  }
+
+  function drawBees(t) {
+    for (const bee of bees) {
+      const tilt = Math.max(-0.5, Math.min(0.5, bee.vx * 0.18));
+      ctx.save();
+      ctx.translate(bee.x, bee.y);
+      ctx.rotate(tilt);
+
+      // alas batientes (translúcidas)
+      const flap = Math.sin(t * 0.09 + bee.ph) * 0.85;
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.rotate(flap * side * 0.5 - side * 0.5);
+        ctx.beginPath();
+        ctx.ellipse(side * 1.0, -3.0, 3.0, 1.4, side * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(222, 232, 226, 0.45)";
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // cuerpo dorado con franjas
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4.0, 2.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(226, 182, 68, 0.95)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(42, 34, 16, 0.85)";
+      ctx.lineWidth = 1.1;
+      for (const sx of [-1.3, 0.5]) {
+        ctx.beginPath();
+        ctx.moveTo(sx, -2.1);
+        ctx.lineTo(sx, 2.1);
+        ctx.stroke();
+      }
+      // cabeza
+      ctx.beginPath();
+      ctx.arc(3.7, 0, 1.25, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(42, 34, 16, 0.95)";
+      ctx.fill();
+      ctx.restore();
+
+      // chispa de polen al recolectar
+      if (bee.state === "hover" && Math.random() < 0.05) {
+        ctx.beginPath();
+        ctx.arc(bee.x + (Math.random() - 0.5) * 6, bee.y + 3 + Math.random() * 3, 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(227, 199, 102, 0.7)";
+        ctx.fill();
+      }
+    }
+  }
+
   /* ---------- Bucle ---------- */
   function frame(now) {
     const t = now;
@@ -639,9 +800,13 @@ const Garden = (() => {
     drawGusts(t, light);
     drawRoots(t);
     drawGround(light);
+    drawGrass(0, t, light);                    // pasto de fondo
     for (const p of plants) drawPlant(p, t, light);
+    drawGrass(1, t, light);                    // pasto delantero
     drawDrops();
     drawPetals(t);
+    updateBees(t);
+    drawBees(t);
     drawPollen(t, light);
     requestAnimationFrame(frame);
   }
@@ -658,5 +823,9 @@ const Garden = (() => {
     return best;
   }
 
-  return { addPlant, pick, kinOf, recomputeKinship, get plants() { return plants; } };
+  return {
+    addPlant, pick, kinOf, recomputeKinship,
+    get plants() { return plants; },
+    get bees() { return bees; },
+  };
 })();
