@@ -71,6 +71,7 @@ const I18N = (() => {
       "sower.hint": "Tu frase decide la especie: su ánimo, su sintaxis y sus palabras se vuelven anatomía.",
       "sower.idle": "Germinar",
       "sower.busy": "Germinando…",
+      "sower.drag": "Arrastra para mover el panel",
 
       "toast.tooShort": "Escribe al menos unas palabras para que germine algo.",
       "toast.germinated": "Germinó {latin} — {species}.",
@@ -177,6 +178,7 @@ const I18N = (() => {
       "sower.hint": "Your sentence decides the species: its mood, syntax and words become anatomy.",
       "sower.idle": "Germinate",
       "sower.busy": "Germinating…",
+      "sower.drag": "Drag to move the panel",
 
       "toast.tooShort": "Write at least a few words for something to germinate.",
       "toast.germinated": "{latin} germinated — {species}.",

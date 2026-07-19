@@ -405,6 +405,7 @@ body.is-entered .topbar { opacity: 1; transform: none; }
 body.is-entered .sower { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .sower__panel {
+  position: relative;
   background: var(--glass);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
@@ -412,7 +413,28 @@ body.is-entered .sower { opacity: 1; transform: translateX(-50%) translateY(0); 
   border-radius: var(--radius);
   padding: 1.1rem 1.2rem 0.9rem;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  transition: box-shadow 0.4s var(--ease-soft);
 }
+
+/* panel movido por el usuario: posición libre, sin animación de anclaje */
+.sower.is-moved { transition: none; }
+.sower.is-dragging { user-select: none; }
+.sower.is-dragging .sower__panel {
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 162, 39, 0.25);
+}
+.sower__grip {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.8rem;
+  color: var(--ink-dim);
+  font-size: 0.95rem;
+  line-height: 1;
+  opacity: 0.65;
+  cursor: grab;
+  transition: color 0.3s, opacity 0.3s;
+}
+.sower__grip:hover { color: var(--brass-soft); opacity: 1; }
+.sower.is-dragging .sower__grip { cursor: grabbing; }
 .sower__label {
   display: block;
   font-family: var(--font-mono);

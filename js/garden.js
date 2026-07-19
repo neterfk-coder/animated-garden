@@ -213,7 +213,13 @@ const Garden = (() => {
     const heightFactor = Math.max(0, (groundY - py)) / H;
     const flutter = Math.sin(t * 0.0011 + p.phase + (groundY - py) * 0.012);
     const bend = windNow * 16 * Math.pow(heightFactor, 1.25) * (1 + p.genome.complexity * 0.5);
-    return px + bend + flutter * 5 * heightFactor * (1 - windNow * 0.5);
+    // sacudida al recibir el agua de la regadera (decae sola)
+    let shake = 0;
+    if (p.shakeUntil && t < p.shakeUntil) {
+      const k = (p.shakeUntil - t) / 650;
+      shake = Math.sin(t * 0.055 + p.phase * 9) * (p.shakeAmp || 1.5) * k * 3 * heightFactor;
+    }
+    return px + bend + shake + flutter * 5 * heightFactor * (1 - windNow * 0.5);
   }
 
   /* ---------- Ciclo día/noche del invernadero ---------- */
@@ -814,6 +820,7 @@ const Garden = (() => {
   };
   let water = [];      // gotas del chorro
   let splashes = [];   // salpicaduras, ondas y destellos en hojas
+  let clings = [];     // gotas adheridas que resbalan por las plantas
 
   const watererEl = document.getElementById("waterer");
   const waterToggle = document.getElementById("water-toggle");
@@ -914,6 +921,38 @@ const Garden = (() => {
     }
   }
 
+  /* ---------- ¿La gota tocó una planta? ----------
+     Prefiltra por caja envolvente y luego mide contra hojas
+     (círculos) y tallos (cápsulas), muestreados uno de cada dos. */
+  function splashOnPlant(d) {
+    for (const p of plants) {
+      const { baseX, baseY, scale } = plantTransform(p);
+      const bb = p.geo.bounds;
+      if (d.x < baseX + bb.minX * scale - 8 || d.x > baseX + bb.maxX * scale + 8) continue;
+      if (d.y > baseY - 2 || d.y < baseY + bb.minY * scale - 8) continue;
+
+      const lx = (d.x - baseX) / scale, ly = (d.y - baseY) / scale;
+      const leaves = p.geo.leaves;
+      for (let i = 0; i < leaves.length; i += 2) {
+        const l = leaves[i];
+        const dx = lx - l.x, dy = ly - l.y;
+        if (dx * dx + dy * dy < 30) return { p, baseX, baseY, scale };
+      }
+      const segs = p.geo.segments;
+      for (let i = 0; i < segs.length; i += 2) {
+        const s = segs[i];
+        const vx = s.x2 - s.x1, vy = s.y2 - s.y1;
+        const len2 = vx * vx + vy * vy || 1;
+        let u = ((lx - s.x1) * vx + (ly - s.y1) * vy) / len2;
+        u = u < 0 ? 0 : u > 1 ? 1 : u;
+        const dx = lx - (s.x1 + vx * u), dy = ly - (s.y1 + vy * u);
+        const rr = 1.3 + s.w * 0.3;
+        if (dx * dx + dy * dy < rr * rr) return { p, baseX, baseY, scale };
+      }
+    }
+    return null;
+  }
+
   function drawWater(t) {
     // chorro
     ctx.lineCap = "round";
@@ -924,6 +963,44 @@ const Garden = (() => {
       d.vy += 0.085;
       d.x += d.vx; d.y += d.vy;
       d.life -= 0.006;
+
+      // choque contra una planta: la moja, la sacude, y la gota
+      // rebota o se queda adherida resbalando por ella
+      if ((d.bounces || 0) < 2 && d.vy > 0.4) {
+        const hit = splashOnPlant(d);
+        if (hit) {
+          const p = hit.p;
+          if (t > (p.shakeUntil || 0)) p.shakeAmp = 0;
+          p.shakeAmp = Math.min(3.4, (p.shakeAmp || 0) + 0.5);
+          p.shakeUntil = t + 650;
+          p.wateredUntil = t + 5200;
+
+          if (Math.random() < 0.3 && clings.length < 70) {
+            clings.push({
+              p,
+              lx: (d.x - hit.baseX) / hit.scale,
+              ly: (d.y - hit.baseY) / hit.scale,
+              r: 0.9 + Math.random() * 0.7,
+              life: 1,
+              slide: (0.004 + Math.random() * 0.006) / hit.scale,
+            });
+            water.splice(i, 1);
+            continue;
+          }
+          d.bounces = (d.bounces || 0) + 1;
+          d.vy = -Math.abs(d.vy) * (0.25 + Math.random() * 0.25);
+          d.vx = d.vx * 0.3 + (Math.random() - 0.5) * 1.6 + windNow * 0.4;
+          d.life *= 0.8;
+          if (splashes.length < 90) {
+            splashes.push({
+              x: d.x, y: d.y,
+              vx: (Math.random() - 0.5) * 1.5,
+              vy: -(0.4 + Math.random()),
+              life: 0.5,
+            });
+          }
+        }
+      }
 
       if (d.y >= groundY + 2) {
         // salpicadura + onda en el suelo, y las plantas cercanas se riegan
@@ -980,6 +1057,41 @@ const Garden = (() => {
         ctx.fillStyle = `rgba(150, 205, 220, ${0.65 * s.life})`;
         ctx.fill();
       }
+    }
+  }
+
+  function drawClings(t) {
+    for (let i = clings.length - 1; i >= 0; i--) {
+      const c = clings[i];
+      if (!plants.includes(c.p)) { clings.splice(i, 1); continue; }
+      const { baseX, baseY, scale } = plantTransform(c.p);
+      c.ly += c.slide;   // resbala lentamente hacia abajo
+      c.life -= 0.0035;
+      const x = sway(c.p, baseX + c.lx * scale, baseY + c.ly * scale, t);
+      const y = baseY + c.ly * scale;
+
+      if (y >= groundY) {
+        splashes.push({ ripple: true, x, y: groundY + 2, r: 1, life: 0.4 });
+        clings.splice(i, 1);
+        continue;
+      }
+      if (c.life <= 0) { clings.splice(i, 1); continue; }
+      if (Math.random() < 0.004) {
+        // la gota se desprende y cae
+        drops.push({ x, y, vy: 0.2, r: 1.3, life: 0.9, color: "rgba(150,205,220," });
+        clings.splice(i, 1);
+        continue;
+      }
+
+      // gota adherida con su reflejo
+      ctx.beginPath();
+      ctx.arc(x, y, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(158, 208, 224, ${0.55 * c.life})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x - c.r * 0.3, y - c.r * 0.3, c.r * 0.32, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(240, 250, 252, ${0.5 * c.life})`;
+      ctx.fill();
     }
   }
 
@@ -1079,6 +1191,7 @@ const Garden = (() => {
     drawGrass(0, t, light);                    // pasto de fondo
     for (const p of plants) drawPlant(p, t, light);
     drawGrass(1, t, light);                    // pasto delantero
+    drawClings(t);
     drawDrops();
     drawPetals(t);
     updateBees(t);

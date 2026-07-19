@@ -132,6 +132,60 @@ const UI = (() => {
     if (e.key === "Escape") specimen.classList.remove("is-open");
   });
 
+  /* ---------- Panel de siembra arrastrable ---------- */
+  const sowerEl = $("sower");
+  const sowerPanel = sowerEl.querySelector(".sower__panel");
+  const SOWER_POS_KEY = "jardin-semantico:sower-pos";
+
+  function placeSower(x, y) {
+    const r = sowerEl.getBoundingClientRect();
+    const nx = Math.max(8, Math.min(window.innerWidth - r.width - 8, x));
+    const ny = Math.max(8, Math.min(window.innerHeight - r.height - 8, y));
+    sowerEl.classList.add("is-moved");
+    sowerEl.style.left = nx + "px";
+    sowerEl.style.top = ny + "px";
+    sowerEl.style.bottom = "auto";
+    sowerEl.style.transform = "none";
+  }
+
+  let sowerDrag = null;
+  sowerPanel.addEventListener("pointerdown", (e) => {
+    // se arrastra desde cualquier zona del panel que no sea interactiva
+    if (e.target.closest("input, button")) return;
+    const r = sowerEl.getBoundingClientRect();
+    sowerDrag = { ox: e.clientX - r.left, oy: e.clientY - r.top, id: e.pointerId };
+    sowerEl.classList.add("is-dragging");
+    sowerPanel.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  sowerPanel.addEventListener("pointermove", (e) => {
+    if (!sowerDrag || e.pointerId !== sowerDrag.id) return;
+    placeSower(e.clientX - sowerDrag.ox, e.clientY - sowerDrag.oy);
+  });
+  function endSowerDrag() {
+    if (!sowerDrag) return;
+    sowerDrag = null;
+    sowerEl.classList.remove("is-dragging");
+    const r = sowerEl.getBoundingClientRect();
+    localStorage.setItem(SOWER_POS_KEY, JSON.stringify({ x: r.left, y: r.top }));
+  }
+  sowerPanel.addEventListener("pointerup", endSowerDrag);
+  sowerPanel.addEventListener("pointercancel", endSowerDrag);
+
+  // recuperar la posición elegida en visitas anteriores
+  try {
+    const saved = JSON.parse(localStorage.getItem(SOWER_POS_KEY));
+    if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+      requestAnimationFrame(() => placeSower(saved.x, saved.y));
+    }
+  } catch { /* posición corrupta: se ignora */ }
+
+  window.addEventListener("resize", () => {
+    if (!sowerEl.classList.contains("is-moved")) return;
+    const r = sowerEl.getBoundingClientRect();
+    placeSower(r.left, r.top);
+  });
+
   /* ---------- Re-traducir lo que ya está en pantalla ---------- */
   I18N.onChange(() => {
     updateStats();
