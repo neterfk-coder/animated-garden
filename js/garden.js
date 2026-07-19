@@ -211,7 +211,7 @@ const Garden = (() => {
   // lx, ly: coordenadas LOCALES (sin escalar, espacio del genoma) del
   // punto que se está dibujando — permiten que la sacudida del agua
   // se sienta solo donde de verdad cayó la gota, no en toda la planta.
-  const IMPACT_LIFE = 900;      // ms que dura la sacudida de un impacto
+  const IMPACT_LIFE = 1400;     // ms que dura la sacudida de un impacto
   const IMPACT_RADIUS = 20;     // alcance del impacto en unidades locales
 
   function sway(p, px, py, t, lx = 0, ly = 0) {
@@ -233,7 +233,8 @@ const Garden = (() => {
         const spatial = Math.exp(-dist2 / (2 * IMPACT_RADIUS * IMPACT_RADIUS));
         if (spatial < 0.02) continue;
         const timeFalloff = 1 - age / IMPACT_LIFE;
-        shake += Math.sin(age * 0.05 + dist2 * 0.002) * imp.amp * spatial * timeFalloff * timeFalloff;
+        // ondulación lenta y delicada, no un temblor rápido
+        shake += Math.sin(age * 0.016 + dist2 * 0.002) * imp.amp * spatial * timeFalloff * timeFalloff;
       }
     }
     return px + bend + shake + flutter * 5 * heightFactor * (1 - windNow * 0.5);
@@ -522,7 +523,8 @@ const Garden = (() => {
     const budget = p.geo.totalLen * growth;
     if (budget <= 0) return;
 
-    // planta recién regada: reluce, y sus hojas sueltan destellos de agua
+    // planta recién regada: reluce, sus hojas sueltan destellos de agua
+    // y hace la fotosíntesis — motas de luz verde-dorada suben del follaje
     const watered = p.wateredUntil && t < p.wateredUntil;
     if (watered) {
       light = Math.min(1, light + 0.25);
@@ -533,6 +535,17 @@ const Garden = (() => {
           x: baseX + l.x * scale + (Math.random() - 0.5) * 4,
           y: baseY + l.y * scale,
           vy: -0.12, life: 0.9,
+        });
+      }
+      if (!reduceMotion && p.geo.leaves.length && Math.random() < 0.05 && motes.length < 80) {
+        const l = p.geo.leaves[(Math.random() * p.geo.leaves.length) | 0];
+        motes.push({
+          x: baseX + l.x * scale,
+          y: baseY + l.y * scale,
+          vy: -(0.2 + Math.random() * 0.3),
+          ph: Math.random() * Math.PI * 2,
+          r: 0.8 + Math.random() * 0.9,
+          life: 1,
         });
       }
     }
@@ -599,7 +612,8 @@ const Garden = (() => {
             vy: -0.12 + Math.random() * 0.2, rot: 0, vr: 0,
             ph: Math.random() * Math.PI * 2, life: 1, seed: true,
           });
-        } else if (["petal", "rose", "orchid", "sun"].includes(style) && Math.random() < 0.0028) {
+        } else if (["petal", "rose", "orchid", "sun"].includes(style) &&
+                   Math.random() < (watered ? 0.012 : 0.0028)) {
           petals.push({
             x: bx, y: by, sp: 1.1 + Math.random() * 1.1,
             vy: 0.16 + Math.random() * 0.22,
@@ -838,6 +852,7 @@ const Garden = (() => {
   let water = [];      // gotas del chorro
   let splashes = [];   // salpicaduras, ondas y destellos en hojas
   let clings = [];     // gotas adheridas que resbalan por las plantas
+  let motes = [];      // motas de fotosíntesis: luz que sube del follaje
 
   const watererEl = document.getElementById("waterer");
   const waterToggle = document.getElementById("water-toggle");
@@ -932,9 +947,104 @@ const Garden = (() => {
     }
   }
 
+  /* Acumula tiempo efectivo de riego y dispara el florecimiento.
+     cap limita cuánto crédito da un impacto aislado; las gotas del
+     mismo frame no suman doble. */
+  function feedPlant(p, t, cap) {
+    const last = p._hitAt || 0;
+    const dt = t - last;
+    if (dt < 1) return;
+    p.wetMs = (p.wetMs || 0) + Math.min(cap, dt);
+    p._hitAt = t;
+    if ((p.flourish || 0) < 2 && p.wetMs >= 3800 * ((p.flourish || 0) + 1)) {
+      flourish(p, t);
+    }
+  }
+
   function wetPlantsNear(xImpact, t) {
     for (const p of plants) {
-      if (Math.abs(p.x * W - xImpact) < 36) p.wateredUntil = t + 5200;
+      if (Math.abs(p.x * W - xImpact) < 36) {
+        p.wateredUntil = t + 5200;
+        feedPlant(p, t, 150);  // regar la base también alimenta
+      }
+    }
+  }
+
+  /* ---------- Al mojarse, caen algunos pétalos ---------- */
+  function shedPetal(p, baseX, baseY, scale) {
+    if (!p.geo.blooms.length || petals.length >= 40) return;
+    const style = styleOf(p.genome);
+    if (!["petal", "rose", "orchid", "sun", "spike"].includes(style)) return;
+    const b = p.geo.blooms[(Math.random() * p.geo.blooms.length) | 0];
+    petals.push({
+      x: baseX + b.x * scale, y: baseY + b.y * scale,
+      sp: 0.5 + Math.random() * 0.5,             // cae, más que volar
+      vy: 0.35 + Math.random() * 0.2,
+      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.08,
+      ph: Math.random() * Math.PI * 2, life: 1,
+      col: petalRGBA(style, p.genome),
+    });
+  }
+
+  /* ---------- Florecimiento: el agua hace crecer la planta ----------
+     Con suficiente riego la planta da un estirón: una iteración más
+     del L-system (más ramas), más hojas y algo de altura, con una
+     animación de brote y semillas doradas que se van con el viento. */
+  function flourish(p, t) {
+    p.flourish = (p.flourish || 0) + 1;
+    const g = p.genome;
+    g.iterations = Math.min(5, (g.iterations || 3) + 1);
+    g.height = Math.min(1.0, g.height * 1.06 + 0.02);
+    g.leafDensity = Math.min(1, g.leafDensity + 0.12);
+    p.geo = LSystem.build(g);
+    p.bornAt = t - CONFIG.GERMINATION_MS * 0.45;  // rebrota ante tus ojos
+
+    const { baseX, baseY, scale } = plantTransform(p);
+    // aro de luz en la tierra
+    splashes.push({ ripple: true, x: baseX, y: groundY + 2, r: 6, life: 0.8 });
+    // bocanada de motas de fotosíntesis alrededor de la copa
+    const top = baseY + p.geo.bounds.minY * scale;
+    for (let k = 0; k < 14 && motes.length < 80; k++) {
+      motes.push({
+        x: baseX + (Math.random() - 0.5) * 70,
+        y: top + Math.random() * (baseY - top) * 0.7,
+        vy: -(0.25 + Math.random() * 0.4),
+        ph: Math.random() * Math.PI * 2,
+        r: 0.9 + Math.random() * 1.1,
+        life: 1,
+      });
+    }
+    // semillas doradas que viajan con el viento
+    for (let k = 0; k < 5 && petals.length < 40; k++) {
+      petals.push({
+        x: baseX + (Math.random() - 0.5) * 40,
+        y: top + Math.random() * 30,
+        sp: 1.3 + Math.random() * 1.0,
+        vy: -0.05 + Math.random() * 0.15,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.1,
+        ph: Math.random() * Math.PI * 2, life: 1,
+        col: "rgba(227, 199, 102,",
+      });
+    }
+  }
+
+  function drawMotes(t) {
+    for (let i = motes.length - 1; i >= 0; i--) {
+      const m = motes[i];
+      m.y += m.vy;
+      m.x += Math.sin(t * 0.0016 + m.ph) * 0.3 + windNow * 0.15;
+      m.life -= 0.006;
+      if (m.life <= 0) { motes.splice(i, 1); continue; }
+      const a = m.life * (0.4 + 0.3 * Math.sin(t * 0.008 + m.ph));
+      // halo suave + núcleo brillante: luz de fotosíntesis
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r * 2.6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(190, 224, 150, ${a * 0.18})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(226, 240, 190, ${a})`;
+      ctx.fill();
     }
   }
 
@@ -976,7 +1086,7 @@ const Garden = (() => {
     for (let i = water.length - 1; i >= 0; i--) {
       const d = water[i];
       d.px = d.x; d.py = d.y;
-      d.vx += windNow * 0.015;
+      d.vx += windNow * 0.008;  // chorro estable, fácil de apuntar
       d.vy += 0.085;
       d.x += d.vx; d.y += d.vy;
       d.life -= 0.006;
@@ -989,16 +1099,22 @@ const Garden = (() => {
           const p = hit.p;
           p.wateredUntil = t + 5200;
 
-          // sacudida localizada: solo el punto exacto del golpe
-          // (y lo que quede cerca, ver IMPACT_RADIUS) se mueve
+          // sacudida localizada y delicada: solo el punto del golpe
+          // (y lo que quede cerca, ver IMPACT_RADIUS) se mece un poco
           if (!p.impacts) p.impacts = [];
           p.impacts.push({
             lx: (d.x - hit.baseX) / hit.scale,
             ly: (d.y - hit.baseY) / hit.scale,
             t0: t,
-            amp: 2.2 + Math.random() * 1.4,
+            amp: 1.0 + Math.random() * 0.6,
           });
           if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
+
+          // el riego alimenta la planta: se acumula TIEMPO efectivo de
+          // riego (no gotas, para que dé igual si la planta es fina o
+          // frondosa) y con suficiente agua florece con más ramas
+          feedPlant(p, t, 200);
+          if (Math.random() < 0.05) shedPetal(p, hit.baseX, hit.baseY, hit.scale);
 
           if (Math.random() < 0.3 && clings.length < 70) {
             clings.push({
@@ -1218,6 +1334,7 @@ const Garden = (() => {
     drawGrass(1, t, light);                    // pasto delantero
     drawClings(t);
     drawDrops();
+    drawMotes(t);
     drawPetals(t);
     updateBees(t);
     drawBees(t);
@@ -1244,5 +1361,7 @@ const Garden = (() => {
     addPlant, pick, kinOf, recomputeKinship,
     get plants() { return plants; },
     get bees() { return bees; },
+    get watering() { return watering; },
+    get waterCount() { return water.length; },
   };
 })();
