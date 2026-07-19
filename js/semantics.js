@@ -82,22 +82,63 @@ const Semantics = (() => {
     }
   }
 
-  /* ---------- Especie según el ánimo ---------- */
-  function pickSpecies(a) {
+  /* ---------- Temas léxicos → especies especiales ---------- */
+  // 15 especies. El orden importa: el primer tema que aparezca
+  // en la frase decide la especie (ES + EN).
+  const THEMES = [
+    ["rosa",      ["amor","amo","amar","beso","besos","corazón","corazon","enamorado","enamorada","romance","rosa","rosas","love","heart","kiss","romantic"]],
+    ["rubi",      ["pasión","pasion","fuego","deseo","arde","ardiente","sangre","intenso","intensa","rubí","rubi","fire","passion","desire","burning","ruby"]],
+    ["girasol",   ["sol","luz","brillar","brilla","verano","amanecer","dorado","radiante","girasol","sun","light","shine","summer","sunrise","sunflower"]],
+    ["lavanda",   ["paz","calma","tranquilo","tranquila","sereno","serena","respirar","descanso","quietud","lavanda","peace","calm","serene","breathe","lavender"]],
+    ["zafiro",    ["mar","océano","oceano","azul","profundo","profunda","abismo","marea","zafiro","ocean","deep","blue","sapphire"]],
+    ["ambar",     ["recuerdo","recuerdos","memoria","nostalgia","ayer","antaño","infancia","abuela","abuelo","ámbar","ambar","memory","memories","yesterday","childhood","amber"]],
+    ["bambu",     ["fuerza","firme","disciplina","constancia","paciencia","bambú","bambu","strength","discipline","patience","steady","bamboo"]],
+    ["orquidea",  ["elegancia","elegante","belleza","arte","sutil","delicado","delicada","etéreo","etereo","orquídea","orquidea","beauty","elegant","delicate","orchid"]],
+    ["hongo",     ["misterio","secreto","sombra","bosque","oculto","oculta","hongo","seta","mystery","secret","shadow","forest","mushroom"]],
+    ["diente",    ["viento","volar","vuela","soplar","semilla","semillas","deseos","wish","wishes","wind","fly","dandelion"]],
+    ["enredadera",["laberinto","enredo","nudo","raíces","raices","enredadera","hiedra","maze","tangle","vine","ivy"]],
+  ];
+
+  /* ---------- Especie según ánimo + temas ---------- */
+  function pickSpecies(a, phrase) {
     if (a.anger > 0.35 || (a.sentiment < -0.3 && a.anger > 0.15)) return "cactus";
+
+    const low = (phrase || "").toLowerCase();
+    const tokens = new Set(tokenize(phrase || ""));
+    for (const [species, words] of THEMES) {
+      for (const w of words) {
+        if (w.includes(" ") ? low.includes(w) : tokens.has(w)) return species;
+      }
+    }
+
+    if (a.sentiment > 0.6) return "girasol";
     if (a.sentiment > 0.25) return "flor";
+    if (a.sentiment < -0.6) return "zafiro";
     if (a.sentiment < -0.25) return "sauce";
+    if (a.abstractness > 0.72) return "orquidea";
+    if (a.complexity > 0.65) return "enredadera";
     return "helecho";
   }
 
   /* ---------- Nombre latinizado (herbario) ---------- */
   function latinName(keyword, species) {
     const genus = {
-      flor:   "Floralis",
-      sauce:  "Salix",
-      cactus: "Spinosa",
-      helecho:"Filix",
-    }[species];
+      flor:       "Floralis",
+      sauce:      "Salix",
+      cactus:     "Spinosa",
+      helecho:    "Filix",
+      rosa:       "Rosa",
+      girasol:    "Helianthus",
+      lavanda:    "Lavandula",
+      rubi:       "Rubinia",
+      zafiro:     "Sapphirea",
+      ambar:      "Ambra",
+      bambu:      "Bambusa",
+      orquidea:   "Orchis",
+      hongo:      "Fungus",
+      enredadera: "Hedera",
+      diente:     "Taraxacum",
+    }[species] || "Planta";
     let epithet = keyword
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z]/gi, "")
@@ -107,30 +148,49 @@ const Semantics = (() => {
     return `${genus} ${epithet}${suffix}`;
   }
 
+  /* ---------- Estilo de corola por especie ---------- */
+  const BLOOM_STYLE = {
+    flor: "petal", rosa: "rose", girasol: "sun", lavanda: "spike",
+    rubi: "gem", zafiro: "gem", ambar: "gem", orquidea: "orchid",
+    diente: "puff", hongo: "cap", enredadera: "petal",
+  };
+
   /* ---------- Frase → GENOMA ---------- */
   function toGenome(phrase, a) {
-    const species = pickSpecies(a);
+    const species = pickSpecies(a, phrase);
     const len = Math.min(phrase.trim().length, 180);
     const hasQuestion = /[?¿]/.test(phrase);
     const hasEllipsis = /\.\.\.|…/.test(phrase);
     const hasExclaim  = /[!¡]/.test(phrase);
 
-    // semilla determinista a partir de la frase (misma frase → misma planta)
+    // Semilla determinista a partir de la frase + la identidad del
+    // usuario (su cuenta, o un salt local persistente si es invitado):
+    // la misma frase produce plantas DISTINTAS en manos distintas.
+    const salt = (typeof Auth !== "undefined" && Auth.userSalt) ? Auth.userSalt() : "";
+    const dna = phrase + "␟" + salt;
     let seed = 0;
-    for (let i = 0; i < phrase.length; i++) {
-      seed = (seed * 31 + phrase.charCodeAt(i)) >>> 0;
+    for (let i = 0; i < dna.length; i++) {
+      seed = (seed * 31 + dna.charCodeAt(i)) >>> 0;
     }
+    // avalancha (murmur3): que un solo carácter distinto cambie toda la semilla
+    seed = Math.imul(seed ^ (seed >>> 16), 2246822507);
+    seed = Math.imul(seed ^ (seed >>> 13), 3266489909);
+    seed = (seed ^ (seed >>> 16)) >>> 0;
+
+    // variación de tamaño propia de cada usuario/frase
+    const sizeVar = ((seed >>> 8) % 1000) / 1000;
 
     return {
       species,
       seed,
       keyword: a.keyword,
       latin: latinName(a.keyword, species),
+      bloomStyle: BLOOM_STYLE[species] || null,
       sentiment: +a.sentiment.toFixed(3),
       anger: +(a.anger || 0).toFixed(3),
       abstractness: +a.abstractness.toFixed(3),
       complexity: +a.complexity.toFixed(3),
-      height: 0.45 + (len / 180) * 0.55,          // 0.45–1.0
+      height: 0.35 + (len / 180) * 0.45 + sizeVar * 0.2,  // 0.35–1.0
       iterations: 3 + Math.round(a.complexity), // 3–4 niveles L-system
       angle: 16 + a.complexity * 22 + (hasExclaim ? 8 : 0),
       leafDensity: 0.35 + (1 - a.abstractness) * 0.65,

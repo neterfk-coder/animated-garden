@@ -25,7 +25,7 @@ const LSystem = (() => {
     };
   }
 
-  /* ---------- Reglas por especie ---------- */
+  /* ---------- Reglas por especie (15) ---------- */
   function rules(species, rand) {
     switch (species) {
       case "flor":
@@ -50,7 +50,82 @@ const LSystem = (() => {
           X: () => rand() < 0.6 ? "FF[+X]F[-X]" : "FF[+X]FX",
           F: () => "F",
           tropism: -0.04,            // brazos que suben rígidos
-          segLen: 1.5, width: 3.2,
+          segLen: 1.5, width: 3.2, unit: 7,
+        };
+      case "rosa":
+        return {
+          axiom: "X",
+          X: () => rand() < 0.5 ? "F[+X][-X]FX" : "F[-X]F[+X]X",
+          F: () => "FF",
+          tropism: -0.008,
+          segLen: 0.95, width: 1.05,
+        };
+      case "girasol":
+        return {
+          axiom: "FX",
+          X: () => rand() < 0.35 ? "F[+X]FFX" : rand() < 0.55 ? "F[-X]FFX" : "FFX",
+          F: () => "FF",
+          tropism: -0.035,           // tallo alto que busca la luz
+          segLen: 1.25, width: 1.5,
+        };
+      case "lavanda":
+        return {
+          axiom: "X",
+          X: () => rand() < 0.5 ? "F[+X][-X]FX" : "FF[+X][-X]X",
+          F: () => "FF",
+          tropism: -0.055,           // espigas verticales
+          segLen: 0.85, width: 0.65,
+        };
+      case "rubi":
+      case "zafiro":
+      case "ambar":
+        return {
+          axiom: "X",
+          X: () => rand() < 0.6 ? "F[+X][-X]X" : "F[+X]F[-X]",
+          F: () => "F",
+          tropism: 0,
+          segLen: 2.0, width: 1.5, unit: 5.5,
+          rigid: true, angleDeg: 38, // facetas cristalinas
+        };
+      case "bambu":
+        return {
+          axiom: "FX",
+          X: () => rand() < 0.25 ? "F[+X]FFX" : "FFX",
+          F: () => "F",
+          tropism: -0.05,            // cañas rectas
+          segLen: 2.2, width: 2.0, unit: 6.5,
+        };
+      case "orquidea":
+        return {
+          axiom: "FX",
+          X: () => rand() < 0.5 ? "F[+X]FX" : "F[-X]FX",
+          F: () => "FF",
+          tropism: 0.045,            // vara que se arquea
+          segLen: 1.05, width: 0.85,
+        };
+      case "hongo":
+        return {
+          axiom: "F[++FF][--FF]FF",
+          X: () => "",
+          F: () => "F",
+          tropism: 0,
+          segLen: 2.4, width: 3.0, unit: 7,
+        };
+      case "enredadera":
+        return {
+          axiom: "X",
+          X: () => rand() < 0.5 ? "F+[+X][-X]FX" : "F-[-X][+X]FX",
+          F: () => "FF",
+          tropism: 0.02,             // zarcillos que serpentean
+          segLen: 0.9, width: 0.75,
+        };
+      case "diente":
+        return {
+          axiom: "FFFFFF",
+          X: () => "",
+          F: () => "F",
+          tropism: -0.005,           // tallo fino y desnudo
+          segLen: 2.0, width: 0.7,
         };
       default: // helecho
         return {
@@ -85,8 +160,16 @@ const LSystem = (() => {
     const R = rules(genome.species, rand);
     const str = expand(genome, R);
 
-    const angleRad = (genome.angle * Math.PI) / 180;
-    const baseLen = R.segLen * (genome.species === "cactus" ? 7 : 5.2);
+    const angleRad = ((R.angleDeg ?? genome.angle) * Math.PI) / 180;
+    const baseLen = R.segLen * (R.unit || 5.2);
+    const noiseAmt = R.rigid ? 0.012 : 0.06; // los cristales no se tuercen
+    const noLeaves = genome.species === "hongo" || genome.species === "diente";
+
+    // probabilidad de corola en cada punta terminal, por especie
+    const TIP_BLOOM = {
+      flor: 0.45, rosa: 0.5, lavanda: 0.55, orquidea: 0.3,
+      rubi: 0.4, zafiro: 0.4, ambar: 0.4, hongo: 0.9, enredadera: 0.15,
+    };
 
     const segments = [];  // {x1,y1,x2,y2,w,depth,cum}
     const leaves = [];    // {x,y,a,depth}
@@ -103,7 +186,7 @@ const LSystem = (() => {
       if (ch === "F") {
         // tropismo (gravedad o empuje solar) + ruido orgánico
         const grav = R.tropism * Math.sin(a + Math.PI / 2) * (1 + depth * 0.6);
-        a += grav + (rand() - 0.5) * 0.06 * (1 + genome.complexity);
+        a += grav + (rand() - 0.5) * noiseAmt * (1 + genome.complexity);
 
         const len = baseLen * Math.pow(0.92, depth);
         const nx = x + Math.cos(a) * len;
@@ -117,12 +200,17 @@ const LSystem = (() => {
         maxDepth = Math.max(maxDepth, depth + 1);
 
         // hojas según densidad del genoma
-        if (depth >= 1 && rand() < genome.leafDensity * 0.5) {
+        if (!noLeaves && depth >= 1 && rand() < genome.leafDensity * 0.5) {
           leaves.push({ x: nx, y: ny, a: a + (rand() < 0.5 ? 1 : -1) * 0.9, depth, cum });
         }
-        // espinas del cactus
-        if (genome.species === "cactus" && rand() < 0.55) {
+        // espinas: cactus y rosales
+        if ((genome.species === "cactus" && rand() < 0.55) ||
+            (genome.species === "rosa" && rand() < 0.28)) {
           spines.push({ x: nx, y: ny, a: a + (rand() < 0.5 ? 1 : -1) * (Math.PI / 2), cum });
+        }
+        // la orquídea florece a lo largo de la vara
+        if (genome.species === "orquidea" && depth >= 1 && rand() < 0.10) {
+          blooms.push({ x: nx, y: ny, depth, cum });
         }
         x = nx; y = ny;
       }
@@ -130,12 +218,20 @@ const LSystem = (() => {
       else if (ch === "-") a -= angleRad * (0.85 + rand() * 0.3);
       else if (ch === "[") { stack.push({ x, y, a, depth }); depth++; }
       else if (ch === "]") {
-        // punta terminal → posible corola
-        if (genome.species === "flor" && rand() < 0.45) blooms.push({ x, y, depth, cum });
+        // punta terminal → posible corola según la especie
+        const tipChance = TIP_BLOOM[genome.species];
+        if (tipChance && rand() < tipChance) blooms.push({ x, y, depth, cum });
         if (genome.species === "helecho" && rand() < 0.2) leaves.push({ x, y, a, depth, cum });
         const s = stack.pop();
         if (s) ({ x, y, a, depth } = s);
       }
+    }
+
+    // flor grande en el ápice: girasol, diente de león y hongo
+    if (["girasol", "diente", "hongo"].includes(genome.species) && segments.length) {
+      let apex = segments[0];
+      for (const s of segments) if (s.y2 < apex.y2) apex = s;
+      blooms.push({ x: apex.x2, y: apex.y2, depth: 0, cum: cum * 0.92, big: true });
     }
 
     // gancho de pregunta: rizo al final del tallo más alto

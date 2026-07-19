@@ -1,11 +1,13 @@
 /* ============================================================
    JARDÍN — motor de render y atmósfera.
      · germinación animada (crecimiento progresivo)
-     · viento (vaivén por altura)
+     · viento del oeste: todo se mece hacia la izquierda
+     · estelas de viento, pétalos y semillas que vuelan
      · ciclo día/noche del invernadero
      · polen flotante
      · goteo (frases con puntos suspensivos…)
      · raíces entrelazadas entre plantas de significado afín
+     · 15 especies con corolas propias (rosas, gemas, vilanos…)
    ============================================================ */
 
 const Garden = (() => {
@@ -17,13 +19,39 @@ const Garden = (() => {
   let kinLinks = [];      // {a, b, strength}
   let pollen = [];
   let drops = [];
+  let petals = [];        // pétalos y semillas arrastrados por el viento
+  let gusts = [];         // estelas visibles de viento
   let startTime = performance.now();
+  let windNow = -0.7;     // negativo = hacia la izquierda
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---------- Paleta según ánimo ---------- */
+  /* ---------- Viento del oeste ---------- */
+  function windField(t) {
+    // brisa constante + ráfagas lentas; siempre sopla a la izquierda
+    const slow = Math.sin(t * 0.00021);
+    const gust = Math.sin(t * 0.00063 + 1.7) * Math.sin(t * 0.00017 + 0.4);
+    return -(0.55 + Math.max(0, slow) * 0.5 + Math.max(0, gust) * 0.9);
+  }
+
+  /* ---------- Paleta según especie y ánimo ---------- */
+  const SPECIES_TINT = {
+    cactus:     [96, 122, 88],
+    bambu:      [122, 148, 74],
+    girasol:    [104, 142, 84],
+    hongo:      [186, 176, 152],
+    diente:     [128, 152, 118],
+    rubi:       [122, 84, 96],
+    zafiro:     [84, 96, 138],
+    ambar:      [138, 116, 74],
+    rosa:       [110, 140, 104],
+    lavanda:    [112, 138, 118],
+    orquidea:   [118, 134, 112],
+    enredadera: [100, 136, 96],
+  };
   function stemColor(g, light) {
     let r, gr, b;
-    if (g.species === "cactus")      { r = 96;  gr = 122; b = 88;  }
+    const tint = SPECIES_TINT[g.species];
+    if (tint)                        { [r, gr, b] = tint; }
     else if (g.sentiment > 0.25)     { r = 122; gr = 158; b = 118; }
     else if (g.sentiment < -0.25)    { r = 104; gr = 112; b = 148; } // violeta pizarra
     else                             { r = 111; gr = 146; b = 126; }
@@ -31,6 +59,7 @@ const Garden = (() => {
     return `rgb(${(r*L)|0}, ${(gr*L)|0}, ${(b*L)|0})`;
   }
   function leafColor(g, alpha) {
+    if (g.species === "lavanda") return `rgba(148, 162, 178, ${alpha})`;
     if (g.sentiment > 0.25)  return `rgba(158, 196, 142, ${alpha})`;
     if (g.sentiment < -0.25) return `rgba(133, 142, 178, ${alpha})`;
     return `rgba(127, 169, 142, ${alpha})`;
@@ -38,6 +67,30 @@ const Garden = (() => {
   function bloomColor(g) {
     // pétalos: cálidos si la alegría es alta, ámbar si es serena
     return g.sentiment > 0.55 ? "rgba(214, 138, 152, 0.9)" : "rgba(227, 199, 102, 0.9)";
+  }
+
+  /* ---------- Estilo de corola ---------- */
+  const STYLE_BY_SPECIES = {
+    flor: "petal", rosa: "rose", girasol: "sun", lavanda: "spike",
+    rubi: "gem", zafiro: "gem", ambar: "gem", orquidea: "orchid",
+    diente: "puff", hongo: "cap", enredadera: "petal",
+  };
+  function styleOf(g) {
+    return g.bloomStyle || STYLE_BY_SPECIES[g.species] || "petal";
+  }
+  const GEM_RGB = {
+    rubi:   [214, 68, 104],
+    zafiro: [96, 128, 224],
+    ambar:  [228, 168, 62],
+  };
+  function petalRGBA(style, g) {
+    switch (style) {
+      case "rose":   return "rgba(206, 88, 118,";
+      case "orchid": return "rgba(224, 178, 208,";
+      case "sun":    return "rgba(232, 190, 60,";
+      default:
+        return g.sentiment > 0.55 ? "rgba(214, 138, 152," : "rgba(227, 199, 102,";
+    }
   }
 
   /* ---------- Tamaño ---------- */
@@ -63,6 +116,19 @@ const Garden = (() => {
     }));
   }
   seedPollen();
+
+  /* ---------- Estelas de viento ---------- */
+  function seedGusts() {
+    gusts = Array.from({ length: reduceMotion ? 0 : 7 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H * 0.7,
+      len: 60 + Math.random() * 130,
+      sp: 1.4 + Math.random() * 2.2,
+      a: 0.05 + Math.random() * 0.06,
+      ph: Math.random() * Math.PI * 2,
+    }));
+  }
+  seedGusts();
 
   /* ---------- Afinidad semántica (raíces) ---------- */
   function bagOfWords(phrase) {
@@ -124,12 +190,13 @@ const Garden = (() => {
     return { baseX: p.x * W, baseY: groundY, scale };
   }
 
-  /* ---------- Viento ---------- */
+  /* ---------- Vaivén: brisa + arqueo hacia la izquierda ---------- */
   function sway(p, px, py, t) {
     if (reduceMotion) return px;
     const heightFactor = Math.max(0, (groundY - py)) / H;
-    const w = Math.sin(t * 0.0011 + p.phase + (groundY - py) * 0.012);
-    return px + w * 7 * heightFactor * (1 + p.genome.complexity * 0.5);
+    const flutter = Math.sin(t * 0.0011 + p.phase + (groundY - py) * 0.012);
+    const bend = windNow * 16 * Math.pow(heightFactor, 1.25) * (1 + p.genome.complexity * 0.5);
+    return px + bend + flutter * 5 * heightFactor * (1 - windNow * 0.5);
   }
 
   /* ---------- Ciclo día/noche del invernadero ---------- */
@@ -157,6 +224,24 @@ const Garden = (() => {
     ctx.arc(mx, my, 13, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(230, 224, 196, ${0.55 + light * 0.3})`;
     ctx.fill();
+  }
+
+  function drawGusts(t, light) {
+    for (const g of gusts) {
+      g.x += windNow * g.sp;
+      if (g.x < -g.len - 20) {
+        g.x = W + 20;
+        g.y = Math.random() * H * 0.7;
+        g.len = 60 + Math.random() * 130;
+      }
+      const bow = Math.sin(t * 0.001 + g.ph) * 8;
+      ctx.beginPath();
+      ctx.moveTo(g.x + g.len, g.y);
+      ctx.quadraticCurveTo(g.x + g.len * 0.5, g.y + bow, g.x, g.y + bow * 0.4);
+      ctx.strokeStyle = `rgba(216, 228, 214, ${g.a * (0.5 + light * 0.5) * Math.min(1, -windNow)})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
   }
 
   function drawGround(light) {
@@ -190,6 +275,177 @@ const Garden = (() => {
       ctx.strokeStyle = `rgba(123, 134, 176, ${0.14 + link.strength * 0.3})`;
       ctx.lineWidth = 1 + link.strength * 1.6;
       ctx.stroke();
+    }
+  }
+
+  /* ---------- Corolas por estilo ---------- */
+  function drawBloom(p, b, bx, by, t) {
+    const g = p.genome;
+    const style = styleOf(g);
+    const R = (b.big ? 6.4 : 3.2) + Math.max(0, g.sentiment) * 2.2;
+
+    switch (style) {
+      case "rose": {
+        // dos coronas de pétalos apretados + botón dorado
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2 + t * 0.00015;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R, by + Math.sin(a) * R, R * 0.95, R * 0.55, a, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(206, 88, 118, 0.9)";
+          ctx.fill();
+        }
+        for (let k = 0; k < 4; k++) {
+          const a = (k / 4) * Math.PI * 2 - t * 0.0002;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R * 0.45, by + Math.sin(a) * R * 0.45, R * 0.6, R * 0.4, a, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(168, 58, 92, 0.95)";
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(bx, by, R * 0.32, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(201, 162, 39, 0.95)";
+        ctx.fill();
+        break;
+      }
+
+      case "sun": {
+        // girasol: rayos dorados alrededor de un disco oscuro
+        const R2 = b.big ? 10 : 6;
+        for (let k = 0; k < 14; k++) {
+          const a = (k / 14) * Math.PI * 2 + t * 0.0001;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R2, by + Math.sin(a) * R2, R2 * 0.85, R2 * 0.3, a, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(232, 190, 60, 0.92)";
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(bx, by, R2 * 0.72, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(96, 66, 38, 0.98)";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(bx - R2 * 0.2, by - R2 * 0.2, R2 * 0.2, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(140, 100, 54, 0.9)";
+        ctx.fill();
+        break;
+      }
+
+      case "gem": {
+        // flor-gema facetada con destello pulsante
+        const [gr, gg, gb] = GEM_RGB[g.species] || [200, 200, 200];
+        const s = R * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(bx, by - s * 1.4);
+        ctx.lineTo(bx + s * 0.9, by - s * 0.2);
+        ctx.lineTo(bx + s * 0.5, by + s * 0.8);
+        ctx.lineTo(bx - s * 0.5, by + s * 0.8);
+        ctx.lineTo(bx - s * 0.9, by - s * 0.2);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, 0.88)`;
+        ctx.fill();
+        // facetas
+        ctx.beginPath();
+        ctx.moveTo(bx - s * 0.9, by - s * 0.2);
+        ctx.lineTo(bx + s * 0.9, by - s * 0.2);
+        ctx.moveTo(bx, by - s * 1.4);
+        ctx.lineTo(bx, by + s * 0.8);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        // destello
+        const tw = 0.5 + 0.5 * Math.sin(t * 0.004 + bx * 0.3);
+        ctx.beginPath();
+        ctx.arc(bx - s * 0.3, by - s * 0.55, 1.3 + tw, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + tw * 0.45})`;
+        ctx.fill();
+        break;
+      }
+
+      case "spike": {
+        // espiga de lavanda: racimo de florecitas violetas
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2 + b.x;
+          const rr = 1.4 + (k % 3) * 1.6;
+          ctx.beginPath();
+          ctx.arc(bx + Math.cos(a) * rr, by + Math.sin(a) * rr * 1.6 - 2, 1.7, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(150, 122, 196, 0.9)";
+          ctx.fill();
+        }
+        break;
+      }
+
+      case "orchid": {
+        // tres pétalos anchos y un labelo más intenso
+        for (const rot of [-0.7, 0, 0.7]) {
+          ctx.beginPath();
+          ctx.ellipse(bx + rot * R * 0.7, by - R * 0.3, R * 0.8, R * 0.45, rot, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(224, 178, 208, 0.92)";
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.ellipse(bx, by + R * 0.4, R * 0.5, R * 0.35, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(186, 92, 148, 0.95)";
+        ctx.fill();
+        break;
+      }
+
+      case "puff": {
+        // vilano de diente de león: esfera de semillas al viento
+        const R2 = b.big ? 11 : 7;
+        ctx.strokeStyle = "rgba(226, 232, 222, 0.5)";
+        ctx.lineWidth = 0.7;
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * Math.PI * 2;
+          const ex = bx + Math.cos(a) * R2, ey = by + Math.sin(a) * R2;
+          ctx.beginPath();
+          ctx.moveTo(bx, by);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(ex, ey, 0.9, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(236, 240, 232, 0.85)";
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(bx, by, 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(216, 228, 214, 0.9)";
+        ctx.fill();
+        break;
+      }
+
+      case "cap": {
+        // sombrero de hongo con motas claras
+        const w = b.big ? 15 : 9, h = w * 0.6;
+        ctx.beginPath();
+        ctx.ellipse(bx, by, w, h, 0, Math.PI, Math.PI * 2);
+        ctx.fillStyle = "rgba(192, 96, 82, 0.95)";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(bx, by, w, h * 0.22, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(226, 214, 192, 0.85)";
+        ctx.fill();
+        for (const [ox, oy, r] of [[-w*0.4, -h*0.45, 1.6], [w*0.25, -h*0.6, 1.3], [w*0.05, -h*0.25, 1.1]]) {
+          ctx.beginPath();
+          ctx.arc(bx + ox, by + oy, r, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(232, 220, 200, 0.8)";
+          ctx.fill();
+        }
+        break;
+      }
+
+      default: {
+        // corola clásica de cinco pétalos
+        for (let k = 0; k < 5; k++) {
+          const a = (k / 5) * Math.PI * 2 + t * 0.0002;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R, by + Math.sin(a) * R, R * 0.9, R * 0.5, a, 0, Math.PI * 2);
+          ctx.fillStyle = bloomColor(g);
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(bx, by, R * 0.55, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(201, 162, 39, 0.95)";
+        ctx.fill();
+      }
     }
   }
 
@@ -227,7 +483,7 @@ const Garden = (() => {
       const sx = sway(p, lx, ly, t);
       ctx.save();
       ctx.translate(sx, ly);
-      ctx.rotate(l.a + (reduceMotion ? 0 : Math.sin(t * 0.0013 + l.x) * 0.08));
+      ctx.rotate(l.a + (reduceMotion ? 0 : Math.sin(t * 0.0013 + l.x) * 0.08 + windNow * 0.10));
       ctx.beginPath();
       const L = 5.5 * scale * 0.9;
       ctx.ellipse(L * 0.6, 0, L, L * 0.36, 0, 0, Math.PI * 2);
@@ -236,7 +492,7 @@ const Garden = (() => {
       ctx.restore();
     }
 
-    // espinas (cactus)
+    // espinas (cactus y rosal)
     for (const sp of p.geo.spines) {
       if (sp.cum > budget) continue;
       const sx = sway(p, baseX + sp.x * scale, baseY + sp.y * scale, t);
@@ -249,23 +505,32 @@ const Garden = (() => {
       ctx.stroke();
     }
 
-    // corolas (flor)
+    // corolas según el estilo de la especie
+    const style = styleOf(p.genome);
     for (const b of p.geo.blooms) {
       if (b.cum > budget) continue;
       const bx = sway(p, baseX + b.x * scale, baseY + b.y * scale, t);
       const by = baseY + b.y * scale;
-      const R = 3.2 + p.genome.sentiment * 2.2;
-      for (let k = 0; k < 5; k++) {
-        const a = (k / 5) * Math.PI * 2 + t * 0.0002;
-        ctx.beginPath();
-        ctx.ellipse(bx + Math.cos(a) * R, by + Math.sin(a) * R, R * 0.9, R * 0.5, a, 0, Math.PI * 2);
-        ctx.fillStyle = bloomColor(p.genome);
-        ctx.fill();
+      drawBloom(p, b, bx, by, t);
+
+      // el viento arranca pétalos y semillas de vez en cuando
+      if (!reduceMotion && growth >= 1 && petals.length < 40) {
+        if (style === "puff" && Math.random() < 0.006) {
+          petals.push({
+            x: bx, y: by, sp: 1.6 + Math.random() * 1.2,
+            vy: -0.12 + Math.random() * 0.2, rot: 0, vr: 0,
+            ph: Math.random() * Math.PI * 2, life: 1, seed: true,
+          });
+        } else if (["petal", "rose", "orchid", "sun"].includes(style) && Math.random() < 0.0028) {
+          petals.push({
+            x: bx, y: by, sp: 1.1 + Math.random() * 1.1,
+            vy: 0.16 + Math.random() * 0.22,
+            rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.12,
+            ph: Math.random() * Math.PI * 2, life: 1,
+            col: petalRGBA(style, p.genome),
+          });
+        }
       }
-      ctx.beginPath();
-      ctx.arc(bx, by, R * 0.55, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(201, 162, 39, 0.95)";
-      ctx.fill();
     }
 
     // goteo (…): lágrimas que caen del ápice
@@ -306,18 +571,20 @@ const Garden = (() => {
   function drawPollen(t, light) {
     ctx.fillStyle = `rgba(227, 199, 102, ${0.20 + light * 0.15})`;
     for (const g of pollen) {
-      g.y -= g.s;
-      g.x += Math.sin(t * 0.0007 + g.p) * 0.3;
+      g.y -= g.s * 0.6;
+      g.x += windNow * (0.5 + g.s) + Math.sin(t * 0.0007 + g.p) * 0.3;
       if (g.y < -6) { g.y = H + 6; g.x = Math.random() * W; }
+      if (g.x < -6) { g.x = W + 6; g.y = Math.random() * H; }
       ctx.beginPath();
       ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
       ctx.fill();
     }
   }
+
   function drawDrops() {
     for (let i = drops.length - 1; i >= 0; i--) {
       const d = drops[i];
-      d.vy += 0.05; d.y += d.vy; d.life -= 0.012;
+      d.vy += 0.05; d.y += d.vy; d.x += windNow * 0.5; d.life -= 0.012;
       if (d.life <= 0 || d.y > groundY + 6) { drops.splice(i, 1); continue; }
       ctx.beginPath();
       ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
@@ -326,15 +593,55 @@ const Garden = (() => {
     }
   }
 
+  function drawPetals(t) {
+    for (let i = petals.length - 1; i >= 0; i--) {
+      const pt = petals[i];
+      pt.x += windNow * pt.sp;
+      pt.y += pt.vy + Math.sin(t * 0.002 + pt.ph) * 0.35;
+      pt.rot += pt.vr;
+      pt.life -= pt.seed ? 0.002 : 0.0035;
+      if (pt.life <= 0 || pt.x < -30 || pt.y > groundY + 24) { petals.splice(i, 1); continue; }
+      const alpha = Math.min(1, pt.life * 2);
+
+      if (pt.seed) {
+        // semilla de diente de león: mota con su paracaídas
+        ctx.strokeStyle = `rgba(226, 232, 222, ${0.5 * alpha})`;
+        ctx.lineWidth = 0.7;
+        for (const da of [-0.5, 0, 0.5]) {
+          ctx.beginPath();
+          ctx.moveTo(pt.x, pt.y);
+          ctx.lineTo(pt.x + Math.sin(da) * 4, pt.y - Math.cos(da) * 5);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(236, 240, 232, ${0.85 * alpha})`;
+        ctx.fill();
+      } else {
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(pt.rot);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 3.1, 1.8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = pt.col + (0.85 * alpha) + ")";
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
   /* ---------- Bucle ---------- */
   function frame(now) {
     const t = now;
+    windNow = reduceMotion ? 0 : windField(t);
     const light = skyLight(t - startTime);
     drawSky(light);
+    drawGusts(t, light);
     drawRoots(t);
     drawGround(light);
     for (const p of plants) drawPlant(p, t, light);
     drawDrops();
+    drawPetals(t);
     drawPollen(t, light);
     requestAnimationFrame(frame);
   }

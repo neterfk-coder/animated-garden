@@ -7,10 +7,32 @@
 
 const Auth = (() => {
   const GUEST_KEY = "jardin-semantico:guest";
+  const SALT_KEY = "jardin-semantico:salt";
 
   function isGuest() { return localStorage.getItem(GUEST_KEY) === "1"; }
   function setGuest() { localStorage.setItem(GUEST_KEY, "1"); }
   function clearGuest() { localStorage.removeItem(GUEST_KEY); }
+
+  /* Identidad estable del "jardinero": el id de su cuenta si tiene
+     sesión, o un salt aleatorio persistente si entra de invitado.
+     Hace que la misma frase germine plantas distintas por usuario. */
+  let currentUserId = null;
+  window.addEventListener("sb-auth-change", (e) => {
+    currentUserId = e.detail.session?.user?.id || null;
+  });
+  (window.__authEvents || []).forEach(({ session }) => {
+    currentUserId = session?.user?.id || null;
+  });
+
+  function userSalt() {
+    if (currentUserId) return currentUserId;
+    let s = localStorage.getItem(SALT_KEY);
+    if (!s) {
+      s = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(SALT_KEY, s);
+    }
+    return s;
+  }
 
   async function getSession() {
     if (!SB) return null;
@@ -57,7 +79,7 @@ const Auth = (() => {
   }
 
   return {
-    isGuest, setGuest, clearGuest,
+    isGuest, setGuest, clearGuest, userSalt,
     getSession, signIn, signUp, recover, updatePassword, signOut, onChange,
     get hasBackend() { return !!SB; },
   };
