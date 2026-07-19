@@ -9,15 +9,12 @@ const UI = (() => {
   const form = $("sow-form");
   const input = $("phrase");
   const sowBtn = $("sow-btn");
+  const sowText = sowBtn.querySelector(".btn__text");
   const toast = $("toast");
   const specimen = $("specimen");
 
-  const SPECIES_LABEL = {
-    flor:    "Flor de ánimo luminoso",
-    sauce:   "Sauce de melancolía",
-    cactus:  "Cactus de furia contenida",
-    helecho: "Helecho de pensamiento neutro",
-  };
+  let currentMode = null;
+  let lastSpecimen = null; // { plant, index } — para volver a traducir la ficha abierta
 
   let toastTimer = null;
   function showToast(msg, ms = 3400) {
@@ -29,9 +26,11 @@ const UI = (() => {
 
   function updateStats(mode) {
     $("stat-plants").textContent = Garden.plants.length;
-    if (mode) {
-      $("stat-mode").textContent = mode === "compartido" ? "◉" : "○";
-      $("stat-mode-label").textContent = mode === "compartido" ? "jardín compartido" : "jardín local";
+    if (mode) currentMode = mode;
+    if (currentMode) {
+      $("stat-mode").textContent = currentMode === "compartido" ? "◉" : "○";
+      $("stat-mode-label").textContent =
+        currentMode === "compartido" ? I18N.t("stat.modeShared") : I18N.t("stat.modeLocal");
     }
   }
 
@@ -48,11 +47,12 @@ const UI = (() => {
     e.preventDefault();
     const phrase = input.value.trim();
     if (phrase.length < 3) {
-      showToast("Escribe al menos unas palabras para que germine algo.");
+      showToast(I18N.t("toast.tooShort"));
       return;
     }
     sowBtn.disabled = true;
-    sowBtn.querySelector(".btn__text").textContent = "Germinando…";
+    sowText.removeAttribute("data-i18n");
+    sowText.textContent = I18N.t("sower.busy");
 
     try {
       const analysis = await Semantics.analyze(phrase);
@@ -61,48 +61,55 @@ const UI = (() => {
       const plant = Garden.addPlant(record, { mine: true, animate: true });
       updateStats();
       input.value = "";
-      showToast(`Germinó ${genome.latin} — ${SPECIES_LABEL[genome.species].toLowerCase()}.`);
+      showToast(I18N.t("toast.germinated", {
+        latin: genome.latin,
+        species: I18N.t("species." + genome.species).toLowerCase(),
+      }));
       setTimeout(() => openSpecimen(plant, Garden.plants.length - 1), CONFIG.GERMINATION_MS * 0.7);
     } catch (err) {
       console.error(err);
-      showToast("Algo impidió la germinación. Inténtalo de nuevo.");
+      showToast(I18N.t("toast.error"));
     } finally {
       sowBtn.disabled = false;
-      sowBtn.querySelector(".btn__text").textContent = "Germinar";
+      sowText.setAttribute("data-i18n", "sower.idle");
+      sowText.textContent = I18N.t("sower.idle");
     }
   });
 
   /* ---------- Ficha de herbario ---------- */
   function openSpecimen(plant, index) {
+    lastSpecimen = { plant, index };
     const g = plant.genome;
     const mine = plant.mine || DB.myPlantIds.has(plant.id);
 
     $("sp-latin").textContent = g.latin;
-    $("sp-species").textContent = SPECIES_LABEL[g.species] || g.species;
+    $("sp-species").textContent = I18N.t("species." + g.species) || g.species;
 
     const s = g.sentiment;
     $("sp-sentiment").textContent =
-      s > 0.25 ? `luminoso (+${s.toFixed(2)})` :
-      s < -0.25 ? `sombrío (${s.toFixed(2)})` :
-      `sereno (${s.toFixed(2)})`;
+      s > 0.25 ? I18N.t("specimen.sentimentBright", { v: s.toFixed(2) }) :
+      s < -0.25 ? I18N.t("specimen.sentimentDark", { v: s.toFixed(2) }) :
+      I18N.t("specimen.sentimentCalm", { v: s.toFixed(2) });
     $("sp-complexity").textContent =
-      g.complexity > 0.6 ? "enredada" : g.complexity > 0.3 ? "media" : "sencilla";
+      g.complexity > 0.6 ? I18N.t("specimen.complexHigh") :
+      g.complexity > 0.3 ? I18N.t("specimen.complexMid") :
+      I18N.t("specimen.complexLow");
     $("sp-date").textContent = plant.created_at
-      ? new Date(plant.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })
-      : "hoy";
+      ? new Date(plant.created_at).toLocaleDateString(I18N.getLang(), { day: "numeric", month: "short" })
+      : I18N.t("specimen.today");
 
     // Privacidad: la frase completa solo la ve quien la plantó.
     if (mine) {
-      $("sp-phrase-label").textContent = "Tu frase";
+      $("sp-phrase-label").textContent = I18N.t("specimen.myPhrase");
       $("sp-phrase").textContent = `«${plant.phrase}»`;
     } else {
-      $("sp-phrase-label").textContent = "Polen (palabra clave)";
+      $("sp-phrase-label").textContent = I18N.t("specimen.pollen");
       $("sp-phrase").textContent = g.keyword || "…";
     }
 
     const kin = Garden.kinOf(index);
     $("sp-kin").textContent = kin > 0
-      ? `Sus raíces se entrelazan con ${kin} planta${kin > 1 ? "s" : ""} de significado afín.`
+      ? I18N.t(kin > 1 ? "specimen.kinMany" : "specimen.kinOne", { n: kin })
       : "";
 
     specimen.classList.add("is-open");
@@ -121,6 +128,14 @@ const UI = (() => {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") specimen.classList.remove("is-open");
+  });
+
+  /* ---------- Re-traducir lo que ya está en pantalla ---------- */
+  I18N.onChange(() => {
+    updateStats();
+    if (specimen.classList.contains("is-open") && lastSpecimen) {
+      openSpecimen(lastSpecimen.plant, lastSpecimen.index);
+    }
   });
 
   return { showToast, updateStats, openSpecimen, revealGarden };

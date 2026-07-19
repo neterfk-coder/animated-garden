@@ -7,7 +7,6 @@
 const AuthUI = (() => {
   const $ = (id) => document.getElementById(id);
   const authEl = $("auth");
-  const tabsWrap = document.querySelector(".auth__tabs");
   const tabs = [...document.querySelectorAll(".auth__tab")];
   const indicator = document.querySelector(".auth__tab-indicator");
 
@@ -17,6 +16,8 @@ const AuthUI = (() => {
     recover: $("auth-recover"),
     newpass: $("auth-newpass"),
   };
+
+  let lastSession = null;
 
   function moveIndicator(tab) {
     indicator.style.width = tab.offsetWidth + "px";
@@ -59,19 +60,26 @@ const AuthUI = (() => {
 
   function translateError(err) {
     const msg = err?.message || "";
-    if (/Invalid login credentials/i.test(msg)) return "Correo o contraseña incorrectos.";
-    if (/User already registered/i.test(msg)) return "Ya existe una cuenta con ese correo.";
-    if (/Password should be at least/i.test(msg)) return "La contraseña debe tener al menos 6 caracteres.";
-    if (/is invalid/i.test(msg)) return "Ese correo no parece válido. Prueba con otro.";
-    if (/rate limit/i.test(msg)) return "Demasiados intentos. Espera un momento y vuelve a intentarlo.";
-    if (/Supabase no configurado/i.test(msg)) return "Este jardín corre en modo local — entra como invitado.";
-    return "Algo salió mal. Inténtalo de nuevo.";
+    if (/Invalid login credentials/i.test(msg)) return I18N.t("auth.err.invalidCredentials");
+    if (/User already registered/i.test(msg)) return I18N.t("auth.err.alreadyRegistered");
+    if (/Password should be at least/i.test(msg)) return I18N.t("auth.err.weakPassword");
+    if (/is invalid/i.test(msg)) return I18N.t("auth.err.invalidEmail");
+    if (/rate limit/i.test(msg)) return I18N.t("auth.err.rateLimit");
+    if (/Supabase no configurado/i.test(msg)) return I18N.t("auth.err.noBackend");
+    return I18N.t("auth.err.generic");
   }
 
-  function setBusy(form, busy, busyLabel, idleLabel) {
+  // view: prefijo de las claves auth.<view>.submit / auth.<view>.busy
+  function setBusy(form, view, busy) {
     const btn = form.querySelector("button[type=submit]");
     btn.disabled = busy;
-    btn.textContent = busy ? busyLabel : idleLabel;
+    if (busy) {
+      btn.removeAttribute("data-i18n");
+      btn.textContent = I18N.t(`auth.${view}.busy`);
+    } else {
+      btn.setAttribute("data-i18n", `auth.${view}.submit`);
+      btn.textContent = I18N.t(`auth.${view}.submit`);
+    }
   }
 
   function enterGarden() {
@@ -83,7 +91,7 @@ const AuthUI = (() => {
   panels.login.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    setBusy(e.target, true, "Entrando…", "Entrar");
+    setBusy(e.target, "login", true);
     try {
       await Auth.signIn(fd.get("email"), fd.get("password"));
       Auth.clearGuest();
@@ -91,7 +99,7 @@ const AuthUI = (() => {
     } catch (err) {
       setNote("login", translateError(err));
     } finally {
-      setBusy(e.target, false, "Entrando…", "Entrar");
+      setBusy(e.target, "login", false);
     }
   });
 
@@ -99,19 +107,19 @@ const AuthUI = (() => {
   panels.signup.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    setBusy(e.target, true, "Creando…", "Crear cuenta");
+    setBusy(e.target, "signup", true);
     try {
       const data = await Auth.signUp(fd.get("email"), fd.get("password"));
       Auth.clearGuest();
       if (data.session) {
         enterGarden();
       } else {
-        setNote("signup", "Revisa tu correo para confirmar tu cuenta.", "ok");
+        setNote("signup", I18N.t("auth.signup.confirmNotice"), "ok");
       }
     } catch (err) {
       setNote("signup", translateError(err));
     } finally {
-      setBusy(e.target, false, "Creando…", "Crear cuenta");
+      setBusy(e.target, "signup", false);
     }
   });
 
@@ -119,14 +127,14 @@ const AuthUI = (() => {
   panels.recover.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    setBusy(e.target, true, "Enviando…", "Enviar enlace");
+    setBusy(e.target, "recover", true);
     try {
       await Auth.recover(fd.get("email"));
-      setNote("recover", "Enlace enviado. Revisa tu correo.", "ok");
+      setNote("recover", I18N.t("auth.recover.sentNotice"), "ok");
     } catch (err) {
       setNote("recover", translateError(err));
     } finally {
-      setBusy(e.target, false, "Enviando…", "Enviar enlace");
+      setBusy(e.target, "recover", false);
     }
   });
 
@@ -134,14 +142,14 @@ const AuthUI = (() => {
   panels.newpass.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    setBusy(e.target, true, "Guardando…", "Guardar contraseña");
+    setBusy(e.target, "newpass", true);
     try {
       await Auth.updatePassword(fd.get("password"));
       enterGarden();
     } catch (err) {
       setNote("newpass", translateError(err));
     } finally {
-      setBusy(e.target, false, "Guardando…", "Guardar contraseña");
+      setBusy(e.target, "newpass", false);
     }
   });
 
@@ -154,13 +162,14 @@ const AuthUI = (() => {
 
   /* ---------- Insignia de cuenta + cerrar sesión ---------- */
   function updateAccountBadge(session) {
+    lastSession = session;
     const label = $("user-label");
     const logoutBtn = $("logout-btn");
     if (session?.user) {
-      label.textContent = session.user.email || "Mi cuenta";
+      label.textContent = session.user.email || I18N.t("account.guest");
       logoutBtn.hidden = false;
     } else if (Auth.isGuest()) {
-      label.textContent = "Invitado";
+      label.textContent = I18N.t("account.guest");
       logoutBtn.hidden = false;
     } else {
       label.textContent = "";
@@ -172,6 +181,8 @@ const AuthUI = (() => {
     await Auth.signOut();
     location.reload();
   });
+
+  I18N.onChange(() => updateAccountBadge(lastSession));
 
   /* ---------- Arranque ---------- */
   async function init() {

@@ -43,6 +43,41 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---------- Selector de idioma ---------- */
+.lang-switch {
+  position: fixed;
+  top: 1.4rem;
+  right: 1.6rem;
+  z-index: 70;
+  display: flex;
+  gap: 0.15rem;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.22rem;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+.lang-switch button {
+  background: none;
+  border: none;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.3s, background 0.3s;
+}
+.lang-switch button:hover { color: var(--ink); }
+.lang-switch button.is-active {
+  color: var(--brass-soft);
+  background: rgba(201, 162, 39, 0.16);
+}
+.lang-switch button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
 /* ---------- Lienzo ---------- */
 #garden {
   position: fixed;
@@ -340,7 +375,7 @@ body.is-entered .topbar { opacity: 1; transform: none; }
 .topbar__logout:hover { color: var(--brass-soft); border-color: rgba(201, 162, 39, 0.5); }
 .topbar__logout:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .topbar__logout[hidden] { display: none; }
-.topbar__stats { display: flex; gap: 1.8rem; text-align: right; }
+.topbar__stats { display: flex; gap: 1.8rem; text-align: right; margin-top: 2.5rem; }
 .stat__num {
   display: block;
   font-family: var(--font-display);
@@ -559,6 +594,7 @@ body.is-entered .sower { opacity: 1; transform: translateX(-50%) translateY(0); 
 
 /* ---------- Móvil ---------- */
 @media (max-width: 640px) {
+  .lang-switch { top: 1rem; right: 1rem; }
   .topbar { padding: 1.1rem 1.2rem; }
   .topbar__stats { gap: 1.1rem; }
   .sower { bottom: 1rem; }

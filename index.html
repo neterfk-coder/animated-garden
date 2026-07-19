@@ -15,78 +15,84 @@
 </head>
 <body>
 
+  <!-- Selector de idioma -->
+  <div class="lang-switch" id="lang-switch" role="group" aria-label="Idioma / Language">
+    <button type="button" data-lang="es" class="is-active">ES</button>
+    <button type="button" data-lang="en">EN</button>
+  </div>
+
   <!-- Lienzo del jardín (ocupa toda la pantalla) -->
-  <canvas id="garden" aria-label="Jardín de plantas generadas por frases"></canvas>
+  <canvas id="garden" data-i18n-aria-label="canvas.ariaLabel" aria-label="Jardín de plantas generadas por frases"></canvas>
 
   <!-- Velo de entrada -->
   <div id="intro" class="intro">
     <div class="intro__inner">
-      <p class="intro__eyebrow">Invernadero colectivo · nº 001</p>
-      <h1 class="intro__title">Jardín<br/>Semántico</h1>
-      <p class="intro__lede">Aquí no se plantan semillas. Se plantan frases.<br/>
+      <p class="intro__eyebrow" data-i18n="intro.eyebrow">Invernadero colectivo · nº 001</p>
+      <h1 class="intro__title" data-i18n-html="intro.title">Jardín<br/>Semántico</h1>
+      <p class="intro__lede" data-i18n-html="intro.lede">Aquí no se plantan semillas. Se plantan frases.<br/>
       Escribe algo — un recuerdo, una queja, un verso — y míralo germinar.</p>
 
       <div class="auth" id="auth">
-        <p class="auth__local-note">Este jardín corre en modo local: entra como invitado, sin necesidad de cuenta.</p>
+        <p class="auth__local-note" data-i18n="auth.localNote">Este jardín corre en modo local: entra como invitado, sin necesidad de cuenta.</p>
 
         <div class="auth__tabs" role="tablist" aria-label="Acceso al jardín">
-          <button class="auth__tab is-active" type="button" role="tab" aria-selected="true" data-view="login">Iniciar sesión</button>
-          <button class="auth__tab" type="button" role="tab" aria-selected="false" data-view="signup">Registro</button>
-          <button class="auth__tab" type="button" role="tab" aria-selected="false" data-view="recover">Recuperar</button>
+          <button class="auth__tab is-active" type="button" role="tab" aria-selected="true" data-view="login" data-i18n="auth.tab.login">Iniciar sesión</button>
+          <button class="auth__tab" type="button" role="tab" aria-selected="false" data-view="signup" data-i18n="auth.tab.signup">Registro</button>
+          <button class="auth__tab" type="button" role="tab" aria-selected="false" data-view="recover" data-i18n="auth.tab.recover">Recuperar</button>
           <div class="auth__tab-indicator"></div>
         </div>
 
         <div class="auth__panels">
           <form class="auth__panel is-active" id="auth-login" data-view="login" autocomplete="on">
             <label class="auth__field">
-              <span class="auth__field-label">Correo</span>
-              <input type="email" name="email" placeholder="tu@correo.com" required />
+              <span class="auth__field-label" data-i18n="auth.field.email">Correo</span>
+              <input type="email" name="email" data-i18n-placeholder="auth.placeholder.email" placeholder="tu@correo.com" required />
             </label>
             <label class="auth__field">
-              <span class="auth__field-label">Contraseña</span>
-              <input type="password" name="password" placeholder="••••••••" required />
+              <span class="auth__field-label" data-i18n="auth.field.password">Contraseña</span>
+              <input type="password" name="password" data-i18n-placeholder="auth.placeholder.password" placeholder="••••••••" required />
             </label>
-            <button type="submit" class="btn btn--gold">Entrar</button>
+            <button type="submit" class="btn btn--gold" data-i18n="auth.login.submit">Entrar</button>
             <p class="auth__error" data-for="login"></p>
           </form>
 
           <form class="auth__panel" id="auth-signup" data-view="signup" autocomplete="on">
             <label class="auth__field">
-              <span class="auth__field-label">Correo</span>
-              <input type="email" name="email" placeholder="tu@correo.com" required />
+              <span class="auth__field-label" data-i18n="auth.field.email">Correo</span>
+              <input type="email" name="email" data-i18n-placeholder="auth.placeholder.email" placeholder="tu@correo.com" required />
             </label>
             <label class="auth__field">
-              <span class="auth__field-label">Contraseña</span>
-              <input type="password" name="password" placeholder="mínimo 6 caracteres" minlength="6" required />
+              <span class="auth__field-label" data-i18n="auth.field.password">Contraseña</span>
+              <input type="password" name="password" data-i18n-placeholder="auth.placeholder.minPassword" placeholder="mínimo 6 caracteres" minlength="6" required />
             </label>
-            <button type="submit" class="btn btn--gold">Crear cuenta</button>
+            <button type="submit" class="btn btn--gold" data-i18n="auth.signup.submit">Crear cuenta</button>
             <p class="auth__error" data-for="signup"></p>
           </form>
 
           <form class="auth__panel" id="auth-recover" data-view="recover" autocomplete="on">
-            <p class="auth__note">Te enviaremos un enlace para elegir una contraseña nueva.</p>
+            <p class="auth__note" data-i18n="auth.recover.note">Te enviaremos un enlace para elegir una contraseña nueva.</p>
             <label class="auth__field">
-              <span class="auth__field-label">Correo</span>
-              <input type="email" name="email" placeholder="tu@correo.com" required />
+              <span class="auth__field-label" data-i18n="auth.field.email">Correo</span>
+              <input type="email" name="email" data-i18n-placeholder="auth.placeholder.email" placeholder="tu@correo.com" required />
             </label>
-            <button type="submit" class="btn btn--gold">Enviar enlace</button>
+            <button type="submit" class="btn btn--gold" data-i18n="auth.recover.submit">Enviar enlace</button>
             <p class="auth__error" data-for="recover"></p>
-            <button type="button" class="auth__back" data-goto="login">← Volver a iniciar sesión</button>
+            <button type="button" class="auth__back" data-goto="login" data-i18n="auth.recover.back">← Volver a iniciar sesión</button>
           </form>
 
           <form class="auth__panel" id="auth-newpass" data-view="newpass" autocomplete="on">
-            <p class="auth__note">Elige tu nueva contraseña para terminar de recuperar tu cuenta.</p>
+            <p class="auth__note" data-i18n="auth.newpass.note">Elige tu nueva contraseña para terminar de recuperar tu cuenta.</p>
             <label class="auth__field">
-              <span class="auth__field-label">Nueva contraseña</span>
-              <input type="password" name="password" placeholder="mínimo 6 caracteres" minlength="6" required />
+              <span class="auth__field-label" data-i18n="auth.field.newPassword">Nueva contraseña</span>
+              <input type="password" name="password" data-i18n-placeholder="auth.placeholder.minPassword" placeholder="mínimo 6 caracteres" minlength="6" required />
             </label>
-            <button type="submit" class="btn btn--gold">Guardar contraseña</button>
+            <button type="submit" class="btn btn--gold" data-i18n="auth.newpass.submit">Guardar contraseña</button>
             <p class="auth__error" data-for="newpass"></p>
           </form>
         </div>
 
         <div class="auth__guest-wrap">
-          <button type="button" class="auth__guest" id="auth-guest">Continuar como invitado →</button>
+          <button type="button" class="auth__guest" id="auth-guest" data-i18n="auth.guest">Continuar como invitado →</button>
         </div>
       </div>
     </div>
@@ -95,21 +101,21 @@
   <!-- Cabecera -->
   <header class="topbar" aria-hidden="true">
     <div class="topbar__brand">
-      <span class="topbar__mark">Jardín Semántico</span>
-      <span class="topbar__sub">herbario vivo</span>
+      <span class="topbar__mark" data-i18n="brand.name">Jardín Semántico</span>
+      <span class="topbar__sub" data-i18n="brand.subtitle">herbario vivo</span>
       <div class="topbar__account">
         <span class="topbar__user-label" id="user-label"></span>
-        <button class="topbar__logout" id="logout-btn" type="button" title="Cerrar sesión" hidden>⏻</button>
+        <button class="topbar__logout" id="logout-btn" type="button" data-i18n-title="account.logoutTitle" title="Cerrar sesión" hidden>⏻</button>
       </div>
     </div>
     <div class="topbar__stats">
       <div class="stat">
         <span class="stat__num" id="stat-plants">0</span>
-        <span class="stat__label">especímenes</span>
+        <span class="stat__label" data-i18n="stat.plants">especímenes</span>
       </div>
       <div class="stat">
         <span class="stat__num" id="stat-mode">·</span>
-        <span class="stat__label" id="stat-mode-label">local</span>
+        <span class="stat__label" id="stat-mode-label" data-i18n="stat.modeLocal">local</span>
       </div>
     </div>
   </header>
@@ -117,35 +123,36 @@
   <!-- Panel de siembra -->
   <div class="sower" id="sower">
     <form id="sow-form" class="sower__panel" autocomplete="off">
-      <label class="sower__label" for="phrase">Planta una frase</label>
+      <label class="sower__label" for="phrase" data-i18n="sower.label">Planta una frase</label>
       <div class="sower__row">
         <input
           id="phrase"
           name="phrase"
           type="text"
           maxlength="180"
+          data-i18n-placeholder="sower.placeholder"
           placeholder="Escribe lo que estás pensando…"
           aria-describedby="sower-hint"
         />
         <button type="submit" class="btn btn--gold" id="sow-btn">
-          <span class="btn__text">Germinar</span>
+          <span class="btn__text" data-i18n="sower.idle">Germinar</span>
         </button>
       </div>
-      <p class="sower__hint" id="sower-hint">Tu frase decide la especie: su ánimo, su sintaxis y sus palabras se vuelven anatomía.</p>
+      <p class="sower__hint" id="sower-hint" data-i18n="sower.hint">Tu frase decide la especie: su ánimo, su sintaxis y sus palabras se vuelven anatomía.</p>
     </form>
   </div>
 
   <!-- Ficha de espécimen (herbario) -->
   <aside class="specimen" id="specimen" aria-live="polite">
     <div class="specimen__card">
-      <button class="specimen__close" id="specimen-close" aria-label="Cerrar ficha">×</button>
-      <p class="specimen__tag">Ficha de herbario</p>
+      <button class="specimen__close" id="specimen-close" data-i18n-aria-label="specimen.close" aria-label="Cerrar ficha">×</button>
+      <p class="specimen__tag" data-i18n="specimen.tag">Ficha de herbario</p>
       <h2 class="specimen__latin" id="sp-latin">—</h2>
       <p class="specimen__species" id="sp-species">—</p>
       <dl class="specimen__data">
-        <div><dt>Sentimiento</dt><dd id="sp-sentiment">—</dd></div>
-        <div><dt>Complejidad</dt><dd id="sp-complexity">—</dd></div>
-        <div><dt>Germinó</dt><dd id="sp-date">—</dd></div>
+        <div><dt data-i18n="specimen.sentimentLabel">Sentimiento</dt><dd id="sp-sentiment">—</dd></div>
+        <div><dt data-i18n="specimen.complexityLabel">Complejidad</dt><dd id="sp-complexity">—</dd></div>
+        <div><dt data-i18n="specimen.germinatedLabel">Germinó</dt><dd id="sp-date">—</dd></div>
       </dl>
       <div class="specimen__phrase-wrap">
         <p class="specimen__phrase-label" id="sp-phrase-label">Polen (palabra clave)</p>
@@ -163,6 +170,7 @@
 
   <!-- Módulos del jardín (el orden importa) -->
   <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/lexicon.js"></script>

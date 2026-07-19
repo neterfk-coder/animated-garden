@@ -17,12 +17,7 @@
 
   // si el jardín está vacío, siembra tres especímenes de muestra
   if (Garden.plants.length === 0) {
-    const seeds = [
-      "Hoy el sol entró por la ventana y me acordé de reír",
-      "Te extraño, aunque nunca sepa decirlo en voz alta…",
-      "¿Y si el tiempo no fuera una línea sino un jardín?",
-    ];
-    for (const phrase of seeds) {
+    for (const phrase of I18N.seedPhrases()) {
       const a = await Semantics.analyze(phrase);
       const genome = Semantics.toGenome(phrase, a);
       Garden.addPlant(
@@ -37,7 +32,7 @@
     if (!record.genome) return;
     Garden.addPlant(record, { mine: false, animate: true });
     UI.updateStats();
-    UI.showToast(`Alguien plantó ${record.genome.latin} en el jardín.`);
+    UI.showToast(I18N.t("toast.someone", { latin: record.genome.latin }));
   });
 
   UI.updateStats(mode);
