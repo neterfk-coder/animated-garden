@@ -49,6 +49,7 @@ const Garden = (() => {
     lavanda:    [112, 138, 118],
     orquidea:   [118, 134, 112],
     enredadera: [100, 136, 96],
+    loto:       [96, 140, 110],
   };
   function stemColor(g, light) {
     let r, gr, b;
@@ -62,6 +63,7 @@ const Garden = (() => {
   }
   function leafColor(g, alpha) {
     if (g.species === "lavanda") return `rgba(148, 162, 178, ${alpha})`;
+    if (g.species === "loto")    return `rgba(110, 162, 128, ${alpha})`;
     if (g.sentiment > 0.25)  return `rgba(158, 196, 142, ${alpha})`;
     if (g.sentiment < -0.25) return `rgba(133, 142, 178, ${alpha})`;
     return `rgba(127, 169, 142, ${alpha})`;
@@ -75,7 +77,7 @@ const Garden = (() => {
   const STYLE_BY_SPECIES = {
     flor: "petal", rosa: "rose", girasol: "sun", lavanda: "spike",
     rubi: "gem", zafiro: "gem", ambar: "gem", orquidea: "orchid",
-    diente: "puff", hongo: "cap", enredadera: "petal",
+    diente: "puff", hongo: "cap", enredadera: "petal", loto: "lotus",
   };
   function styleOf(g) {
     return g.bloomStyle || STYLE_BY_SPECIES[g.species] || "petal";
@@ -476,6 +478,47 @@ const Garden = (() => {
         break;
       }
 
+      case "lotus": {
+        // flor de loto: tres coronas de pétalos apuntados y corazón dorado
+        const R2 = b.big ? 9.5 : 6.5;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2 + t * 0.00008;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R2 * 0.75, by + Math.sin(a) * R2 * 0.75,
+                      R2 * 0.75, R2 * 0.26, a, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(232, 168, 190, 0.85)";
+          ctx.fill();
+        }
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2 - t * 0.0001 + 0.5;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R2 * 0.45, by + Math.sin(a) * R2 * 0.45,
+                      R2 * 0.55, R2 * 0.24, a, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(214, 124, 160, 0.9)";
+          ctx.fill();
+        }
+        for (let k = 0; k < 4; k++) {
+          const a = (k / 4) * Math.PI * 2 + 0.8;
+          ctx.beginPath();
+          ctx.ellipse(bx + Math.cos(a) * R2 * 0.2, by + Math.sin(a) * R2 * 0.2,
+                      R2 * 0.32, R2 * 0.18, a, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(244, 214, 226, 0.95)";
+          ctx.fill();
+        }
+        // receptáculo dorado con semillas
+        ctx.beginPath();
+        ctx.arc(bx, by, R2 * 0.28, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(201, 162, 39, 0.95)";
+        ctx.fill();
+        ctx.fillStyle = "rgba(120, 94, 26, 0.9)";
+        for (const [ox, oy] of [[-1.2, -0.6], [1.1, -0.4], [0, 1.1]]) {
+          ctx.beginPath();
+          ctx.arc(bx + ox * R2 * 0.1, by + oy * R2 * 0.1, R2 * 0.05 + 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+
       case "cap": {
         // sombrero de hongo con motas claras
         const w = b.big ? 15 : 9, h = w * 0.6;
@@ -576,10 +619,20 @@ const Garden = (() => {
       ctx.translate(sx, ly);
       ctx.rotate(l.a + (reduceMotion ? 0 : Math.sin(t * 0.0013 + l.x) * 0.08 + windNow * 0.10));
       ctx.beginPath();
-      const L = 5.5 * scale * 0.9;
-      ctx.ellipse(L * 0.6, 0, L, L * 0.36, 0, 0, Math.PI * 2);
+      const isLoto = p.genome.species === "loto";
+      const L = 5.5 * scale * (isLoto ? 1.45 : 0.9);
+      ctx.ellipse(L * 0.6, 0, L, L * (isLoto ? 0.62 : 0.36), 0, 0, Math.PI * 2);
       ctx.fillStyle = leafColor(p.genome, p.genome.leafAlpha * (0.7 + light * 0.3));
       ctx.fill();
+      if (isLoto) {
+        // hendidura del nenúfar
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(L * 1.2, 0);
+        ctx.strokeStyle = `rgba(16, 30, 22, ${0.35 * p.genome.leafAlpha})`;
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -854,11 +907,42 @@ const Garden = (() => {
   let clings = [];     // gotas adheridas que resbalan por las plantas
   let motes = [];      // motas de fotosíntesis: luz que sube del follaje
 
+  /* ---------- Tijeras de podar ---------- */
+  const pruner = {
+    active: false,
+    x: 0, y: 0, tx: 0, ty: 0,
+    snipT: -1e9,   // instante del último tijeretazo (anima el cierre)
+  };
+  let cuttings = [];   // recortes que caen dando tumbos
+
   const watererEl = document.getElementById("waterer");
   const waterToggle = document.getElementById("water-toggle");
   const waterSlider = document.getElementById("water-pressure");
+  const pruneToggle = document.getElementById("prune-toggle");
 
-  if (waterToggle && waterSlider) {
+  // una sola herramienta en mano a la vez
+  function setTool(name) {
+    watering.active = name === "water";
+    pruner.active = name === "prune";
+    watering.spraying = false;
+    waterToggle.classList.toggle("is-on", watering.active);
+    waterToggle.setAttribute("aria-pressed", String(watering.active));
+    watererEl.classList.toggle("is-on", watering.active);
+    pruneToggle.classList.toggle("is-on", pruner.active);
+    pruneToggle.setAttribute("aria-pressed", String(pruner.active));
+    document.body.classList.toggle("is-watering", watering.active);
+    document.body.classList.toggle("is-pruning", pruner.active);
+    if (watering.active) {
+      watering.x = watering.tx = W * 0.6;
+      watering.y = watering.ty = H * 0.42;
+    }
+    if (pruner.active) {
+      pruner.x = pruner.tx = W * 0.5;
+      pruner.y = pruner.ty = H * 0.45;
+    }
+  }
+
+  if (waterToggle && waterSlider && pruneToggle) {
     const syncSlider = () => {
       watering.pressure = waterSlider.value / 100;
       const pct = waterSlider.value;
@@ -868,42 +952,37 @@ const Garden = (() => {
     waterSlider.addEventListener("input", syncSlider);
     syncSlider();
 
-    waterToggle.addEventListener("click", () => {
-      watering.active = !watering.active;
-      watering.spraying = false;
-      waterToggle.classList.toggle("is-on", watering.active);
-      waterToggle.setAttribute("aria-pressed", String(watering.active));
-      watererEl.classList.toggle("is-on", watering.active);
-      document.body.classList.toggle("is-watering", watering.active);
-      if (watering.active) {
-        watering.x = watering.tx = W * 0.6;
-        watering.y = watering.ty = H * 0.42;
-      }
-    });
+    waterToggle.addEventListener("click", () => setTool(watering.active ? null : "water"));
+    pruneToggle.addEventListener("click", () => setTool(pruner.active ? null : "prune"));
 
     window.addEventListener("mousemove", (e) => {
       watering.tx = e.clientX; watering.ty = e.clientY;
+      pruner.tx = e.clientX; pruner.ty = e.clientY;
     });
     canvas.addEventListener("mousedown", (e) => {
       if (watering.active) { watering.spraying = true; e.preventDefault(); }
+      else if (pruner.active) { snip(performance.now()); e.preventDefault(); }
     });
     window.addEventListener("mouseup", () => { watering.spraying = false; });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && watering.active) waterToggle.click();
+      if (e.key === "Escape" && (watering.active || pruner.active)) setTool(null);
     });
 
     // táctil
     canvas.addEventListener("touchstart", (e) => {
-      if (!watering.active) return;
+      if (!watering.active && !pruner.active) return;
       const t0 = e.touches[0];
-      watering.tx = t0.clientX; watering.ty = t0.clientY;
-      watering.spraying = true;
+      watering.tx = pruner.tx = t0.clientX;
+      watering.ty = pruner.ty = t0.clientY;
+      if (watering.active) watering.spraying = true;
+      else { pruner.x = pruner.tx; pruner.y = pruner.ty; snip(performance.now()); }
       e.preventDefault();
     }, { passive: false });
     canvas.addEventListener("touchmove", (e) => {
-      if (!watering.active) return;
+      if (!watering.active && !pruner.active) return;
       const t0 = e.touches[0];
-      watering.tx = t0.clientX; watering.ty = t0.clientY;
+      watering.tx = pruner.tx = t0.clientX;
+      watering.ty = pruner.ty = t0.clientY;
       e.preventDefault();
     }, { passive: false });
     window.addEventListener("touchend", () => { watering.spraying = false; });
@@ -1201,6 +1280,188 @@ const Garden = (() => {
     }
   }
 
+  /* ---------- Poda ---------- */
+  const PRUNER_ROT = 0.55;   // las hojas apuntan arriba-izquierda
+
+  function prunerTip() {
+    const c = Math.cos(PRUNER_ROT), s = Math.sin(PRUNER_ROT);
+    return { x: pruner.x - 20 * c, y: pruner.y - 20 * s };
+  }
+
+  function snip(t) {
+    pruner.snipT = t;
+    const tip = prunerTip();
+
+    // planta cuya caja envolvente contiene la punta, la más cercana
+    let best = null, bestD = 1e9;
+    for (const p of plants) {
+      const { baseX, baseY, scale } = plantTransform(p);
+      const bb = p.geo.bounds;
+      if (tip.x < baseX + bb.minX * scale - 10 || tip.x > baseX + bb.maxX * scale + 10) continue;
+      if (tip.y < baseY + bb.minY * scale - 10 || tip.y > baseY + 4) continue;
+      const d = Math.abs(tip.x - baseX);
+      if (d < bestD) { bestD = d; best = { p, baseX, baseY, scale }; }
+    }
+    if (!best) return;
+
+    const { p, baseX, baseY, scale } = best;
+    cutFrom(p, (tip.x - baseX) / scale, (tip.y - baseY) / scale, 26 / scale,
+            baseX, baseY, scale, t);
+  }
+
+  function cutFrom(p, lx, ly, R, baseX, baseY, scale, t) {
+    const R2 = R * R;
+    const geo = p.geo;
+    const stemCol = stemColor(p.genome, 0.6);
+    const style = styleOf(p.genome);
+    let cut = 0;
+
+    const dropCutting = (wx, wy, type, col, len) => {
+      if (cuttings.length >= 80) return;
+      cuttings.push({
+        x: wx, y: wy, type, col, len: len || 6,
+        vx: (Math.random() - 0.5) * 0.8 + windNow * 0.3,
+        vy: -(0.2 + Math.random() * 0.5),
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.18,
+        life: 1,
+      });
+    };
+
+    geo.segments = geo.segments.filter((s) => {
+      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
+      const dx = mx - lx, dy = my - ly;
+      if (dx * dx + dy * dy < R2) {
+        dropCutting(baseX + mx * scale, baseY + my * scale, "stem", stemCol,
+                    Math.hypot(s.x2 - s.x1, s.y2 - s.y1) * scale);
+        cut++;
+        return false;
+      }
+      return true;
+    });
+    const near = (o, extra = 0) => {
+      const dx = o.x - lx, dy = o.y - ly;
+      return dx * dx + dy * dy < R2 + extra;
+    };
+    geo.leaves = geo.leaves.filter((l) => {
+      if (near(l, 12)) {
+        dropCutting(baseX + l.x * scale, baseY + l.y * scale, "leaf",
+                    leafColor(p.genome, 0.8));
+        cut++;
+        return false;
+      }
+      return true;
+    });
+    geo.blooms = geo.blooms.filter((b) => {
+      if (near(b, 12)) {
+        dropCutting(baseX + b.x * scale, baseY + b.y * scale, "bloom",
+                    petalRGBA(style, p.genome) + "0.9)");
+        cut++;
+        return false;
+      }
+      return true;
+    });
+    geo.spines = geo.spines.filter((sp) => !near(sp));
+
+    if (cut) {
+      // la planta acusa el tijeretazo con una ondulación suave
+      if (!p.impacts) p.impacts = [];
+      p.impacts.push({ lx, ly, t0: t, amp: 1.2 });
+      if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
+    }
+  }
+
+  function drawCuttings(t) {
+    for (let i = cuttings.length - 1; i >= 0; i--) {
+      const c = cuttings[i];
+      c.vy += 0.07;
+      c.x += c.vx + windNow * 0.25;
+      c.y += c.vy;
+      c.rot += c.vr;
+      if (c.y >= groundY + 4) { c.y = groundY + 4; c.vy = 0; c.vx *= 0.9; c.vr *= 0.85; c.life -= 0.02; }
+      else c.life -= 0.002;
+      if (c.life <= 0) { cuttings.splice(i, 1); continue; }
+
+      const a = Math.min(1, c.life * 1.6);
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.rot);
+      if (c.type === "stem") {
+        ctx.beginPath();
+        ctx.moveTo(-c.len / 2, 0);
+        ctx.lineTo(c.len / 2, 0);
+        ctx.strokeStyle = c.col;
+        ctx.globalAlpha = a;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (c.type === "leaf") {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4.6, 1.8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = c.col;
+        ctx.globalAlpha = a;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
+        ctx.fillStyle = c.col;
+        ctx.globalAlpha = a;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawPruner(t) {
+    if (!pruner.active) return;
+    pruner.x += (pruner.tx - pruner.x) * 0.2;
+    pruner.y += (pruner.ty - pruner.y) * 0.2;
+
+    // apertura de las hojas: se cierran de golpe al cortar y se reabren
+    const since = t - pruner.snipT;
+    let open = 0.42;
+    if (since < 90) open = 0.42 * (since / 90) * 0.2;
+    else if (since < 240) open = 0.42 * ((since - 90) / 150);
+
+    ctx.save();
+    ctx.translate(pruner.x, pruner.y);
+    ctx.rotate(PRUNER_ROT);   // filo hacia arriba-izquierda, mangos abajo-derecha
+
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.rotate(side * open * 0.5);
+      // hoja de acero con canto oscuro para destacar sobre el follaje
+      ctx.beginPath();
+      ctx.ellipse(-12, 0, 13, 2.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(208, 220, 214, 0.97)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(10, 18, 14, 0.8)";
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+      // brillo del filo
+      ctx.beginPath();
+      ctx.moveTo(-23, side * 0.7);
+      ctx.lineTo(-4, side * 0.3);
+      ctx.strokeStyle = "rgba(244, 250, 246, 0.75)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // mango de latón (anillo)
+      ctx.beginPath();
+      ctx.arc(9.5, side * 3.8, 4.6, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(201, 162, 39, 0.95)";
+      ctx.lineWidth = 2.1;
+      ctx.stroke();
+      ctx.restore();
+    }
+    // tornillo del pivote
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.7, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(201, 162, 39, 0.95)";
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawClings(t) {
     for (let i = clings.length - 1; i >= 0; i--) {
       const c = clings[i];
@@ -1339,9 +1600,11 @@ const Garden = (() => {
     updateBees(t);
     drawBees(t);
     drawPollen(t, light);
+    drawCuttings(t);
     updateWatering(t);
     drawWater(t);
     drawWateringCan(t);
+    drawPruner(t);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -1363,5 +1626,6 @@ const Garden = (() => {
     get bees() { return bees; },
     get watering() { return watering; },
     get waterCount() { return water.length; },
+    get pruner() { return pruner; },
   };
 })();

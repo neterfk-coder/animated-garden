@@ -12,7 +12,7 @@ Escribe algo — un recuerdo, una queja, un verso — y germina frente a ti una 
 
 | Rasgo lingüístico | Rasgo vegetal |
 |---|---|
-| **Sentimiento y temas** (amor, sol, calma, pasión, mar, memoria…) | Especie: 15 especies — rosa, girasol, lavanda, flores-gema de rubí / zafiro / ámbar, bambú, orquídea, hongo, enredadera, diente de león, flor, sauce llorón, cactus con espinas, helecho |
+| **Sentimiento y temas** (amor, sol, calma, pasión, mar, memoria, zen…) | Especie: 16 especies — rosa, girasol, lavanda, flor de loto, flores-gema de rubí / zafiro / ámbar, bambú, orquídea, hongo, enredadera, diente de león, flor, sauce llorón, cactus con espinas, helecho |
 | **Complejidad sintáctica** (subordinadas, comas) | Ramificación y torsión del tallo |
 | **Concreción vs. abstracción** de las palabras | Densidad y opacidad de las hojas |
 | **Longitud** de la frase | Altura de la planta |

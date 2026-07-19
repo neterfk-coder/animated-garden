@@ -127,6 +127,14 @@ const LSystem = (() => {
           tropism: -0.005,           // tallo fino y desnudo
           segLen: 2.0, width: 0.7,
         };
+      case "loto":
+        return {
+          axiom: "FFX",
+          X: () => rand() < 0.4 ? "F[+X]FX" : "FFX",
+          F: () => "FF",
+          tropism: 0.03,             // la vara se arquea con serenidad
+          segLen: 1.15, width: 1.1,
+        };
       default: // helecho
         return {
           axiom: "X",
@@ -169,6 +177,7 @@ const LSystem = (() => {
     const TIP_BLOOM = {
       flor: 0.45, rosa: 0.5, lavanda: 0.55, orquidea: 0.3,
       rubi: 0.4, zafiro: 0.4, ambar: 0.4, hongo: 0.9, enredadera: 0.15,
+      loto: 0.25,
     };
 
     const segments = [];  // {x1,y1,x2,y2,w,depth,cum}
@@ -227,8 +236,8 @@ const LSystem = (() => {
       }
     }
 
-    // flor grande en el ápice: girasol, diente de león y hongo
-    if (["girasol", "diente", "hongo"].includes(genome.species) && segments.length) {
+    // flor grande en el ápice: girasol, diente de león, hongo y loto
+    if (["girasol", "diente", "hongo", "loto"].includes(genome.species) && segments.length) {
       let apex = segments[0];
       for (const s of segments) if (s.y2 < apex.y2) apex = s;
       blooms.push({ x: apex.x2, y: apex.y2, depth: 0, cum: cum * 0.92, big: true });

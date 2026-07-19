@@ -121,8 +121,9 @@ const UI = (() => {
 
   /* ---------- Clic en el jardín ---------- */
   document.getElementById("garden").addEventListener("click", (e) => {
-    // con la regadera en mano, el clic riega: no abre fichas
-    if (document.body.classList.contains("is-watering")) return;
+    // con la regadera o las tijeras en mano, el clic es la herramienta
+    if (document.body.classList.contains("is-watering") ||
+        document.body.classList.contains("is-pruning")) return;
     const hit = Garden.pick(e.clientX, e.clientY);
     if (hit) openSpecimen(hit.plant, hit.index);
     else specimen.classList.remove("is-open");

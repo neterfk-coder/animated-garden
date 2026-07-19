@@ -97,6 +97,7 @@ const I18N = (() => {
 
       "water.toggle": "Regadera — riega tus plantas",
       "water.pressure": "Presión del agua",
+      "prune.toggle": "Tijeras de podar — recorta tus plantas",
 
       "species.flor": "Flor de ánimo luminoso",
       "species.sauce": "Sauce de melancolía",
@@ -113,6 +114,7 @@ const I18N = (() => {
       "species.hongo": "Hongo de misterio umbrío",
       "species.enredadera": "Enredadera de ideas entrelazadas",
       "species.diente": "Diente de león de deseos al viento",
+      "species.loto": "Flor de loto — serenidad que renace",
 
       "meta.title": "Jardín Semántico — donde las palabras germinan",
       "meta.description": "Un invernadero digital colectivo donde cada frase que escribes germina en una planta única. Arte que no podría existir sin la tecnología.",
@@ -204,6 +206,7 @@ const I18N = (() => {
 
       "water.toggle": "Watering can — water your plants",
       "water.pressure": "Water pressure",
+      "prune.toggle": "Pruning shears — trim your plants",
 
       "species.flor": "Flower of radiant spirit",
       "species.sauce": "Willow of melancholy",
@@ -220,6 +223,7 @@ const I18N = (() => {
       "species.hongo": "Mushroom of shadowed mystery",
       "species.enredadera": "Vine of intertwined ideas",
       "species.diente": "Dandelion of wind-borne wishes",
+      "species.loto": "Lotus bloom — serenity reborn",
 
       "meta.title": "Semantic Garden — where words germinate",
       "meta.description": "A collective digital greenhouse where every sentence you write germinates into a unique plant. Art that couldn't exist without technology.",

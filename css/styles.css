@@ -557,7 +557,8 @@ body.is-entered .waterer { opacity: 1; transform: none; pointer-events: auto; }
 }
 #water-pressure:focus-visible { outline: 2px solid var(--brass); outline-offset: 4px; }
 
-body.is-watering #garden { cursor: none; }
+body.is-watering #garden,
+body.is-pruning #garden { cursor: none; }
 
 /* ---------- Ficha de espécimen ---------- */
 .specimen {

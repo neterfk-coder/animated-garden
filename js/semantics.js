@@ -89,6 +89,7 @@ const Semantics = (() => {
     ["rosa",      ["amor","amo","amar","beso","besos","corazón","corazon","enamorado","enamorada","romance","rosa","rosas","love","heart","kiss","romantic"]],
     ["rubi",      ["pasión","pasion","fuego","deseo","arde","ardiente","sangre","intenso","intensa","rubí","rubi","fire","passion","desire","burning","ruby"]],
     ["girasol",   ["sol","luz","brillar","brilla","verano","amanecer","dorado","radiante","girasol","sun","light","shine","summer","sunrise","sunflower"]],
+    ["loto",      ["loto","lotus","meditación","meditacion","zen","estanque","pureza","renacer","rebirth","meditation","pond"]],
     ["lavanda",   ["paz","calma","tranquilo","tranquila","sereno","serena","respirar","descanso","quietud","lavanda","peace","calm","serene","breathe","lavender"]],
     ["zafiro",    ["mar","océano","oceano","azul","profundo","profunda","abismo","marea","zafiro","ocean","deep","blue","sapphire"]],
     ["ambar",     ["recuerdo","recuerdos","memoria","nostalgia","ayer","antaño","infancia","abuela","abuelo","ámbar","ambar","memory","memories","yesterday","childhood","amber"]],
@@ -138,6 +139,7 @@ const Semantics = (() => {
       hongo:      "Fungus",
       enredadera: "Hedera",
       diente:     "Taraxacum",
+      loto:       "Nelumbo",
     }[species] || "Planta";
     let epithet = keyword
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -152,7 +154,7 @@ const Semantics = (() => {
   const BLOOM_STYLE = {
     flor: "petal", rosa: "rose", girasol: "sun", lavanda: "spike",
     rubi: "gem", zafiro: "gem", ambar: "gem", orquidea: "orchid",
-    diente: "puff", hongo: "cap", enredadera: "petal",
+    diente: "puff", hongo: "cap", enredadera: "petal", loto: "lotus",
   };
 
   /* ---------- Frase → GENOMA ---------- */
