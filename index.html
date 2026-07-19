@@ -25,7 +25,70 @@
       <h1 class="intro__title">Jardín<br/>Semántico</h1>
       <p class="intro__lede">Aquí no se plantan semillas. Se plantan frases.<br/>
       Escribe algo — un recuerdo, una queja, un verso — y míralo germinar.</p>
-      <button id="enter-btn" class="btn btn--gold">Entrar al jardín</button>
+
+      <div class="auth" id="auth">
+        <p class="auth__local-note">Este jardín corre en modo local: entra como invitado, sin necesidad de cuenta.</p>
+
+        <div class="auth__tabs" role="tablist" aria-label="Acceso al jardín">
+          <button class="auth__tab is-active" type="button" role="tab" aria-selected="true" data-view="login">Iniciar sesión</button>
+          <button class="auth__tab" type="button" role="tab" aria-selected="false" data-view="signup">Registro</button>
+          <button class="auth__tab" type="button" role="tab" aria-selected="false" data-view="recover">Recuperar</button>
+          <div class="auth__tab-indicator"></div>
+        </div>
+
+        <div class="auth__panels">
+          <form class="auth__panel is-active" id="auth-login" data-view="login" autocomplete="on">
+            <label class="auth__field">
+              <span class="auth__field-label">Correo</span>
+              <input type="email" name="email" placeholder="tu@correo.com" required />
+            </label>
+            <label class="auth__field">
+              <span class="auth__field-label">Contraseña</span>
+              <input type="password" name="password" placeholder="••••••••" required />
+            </label>
+            <button type="submit" class="btn btn--gold">Entrar</button>
+            <p class="auth__error" data-for="login"></p>
+          </form>
+
+          <form class="auth__panel" id="auth-signup" data-view="signup" autocomplete="on">
+            <label class="auth__field">
+              <span class="auth__field-label">Correo</span>
+              <input type="email" name="email" placeholder="tu@correo.com" required />
+            </label>
+            <label class="auth__field">
+              <span class="auth__field-label">Contraseña</span>
+              <input type="password" name="password" placeholder="mínimo 6 caracteres" minlength="6" required />
+            </label>
+            <button type="submit" class="btn btn--gold">Crear cuenta</button>
+            <p class="auth__error" data-for="signup"></p>
+          </form>
+
+          <form class="auth__panel" id="auth-recover" data-view="recover" autocomplete="on">
+            <p class="auth__note">Te enviaremos un enlace para elegir una contraseña nueva.</p>
+            <label class="auth__field">
+              <span class="auth__field-label">Correo</span>
+              <input type="email" name="email" placeholder="tu@correo.com" required />
+            </label>
+            <button type="submit" class="btn btn--gold">Enviar enlace</button>
+            <p class="auth__error" data-for="recover"></p>
+            <button type="button" class="auth__back" data-goto="login">← Volver a iniciar sesión</button>
+          </form>
+
+          <form class="auth__panel" id="auth-newpass" data-view="newpass" autocomplete="on">
+            <p class="auth__note">Elige tu nueva contraseña para terminar de recuperar tu cuenta.</p>
+            <label class="auth__field">
+              <span class="auth__field-label">Nueva contraseña</span>
+              <input type="password" name="password" placeholder="mínimo 6 caracteres" minlength="6" required />
+            </label>
+            <button type="submit" class="btn btn--gold">Guardar contraseña</button>
+            <p class="auth__error" data-for="newpass"></p>
+          </form>
+        </div>
+
+        <div class="auth__guest-wrap">
+          <button type="button" class="auth__guest" id="auth-guest">Continuar como invitado →</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -34,6 +97,10 @@
     <div class="topbar__brand">
       <span class="topbar__mark">Jardín Semántico</span>
       <span class="topbar__sub">herbario vivo</span>
+      <div class="topbar__account">
+        <span class="topbar__user-label" id="user-label"></span>
+        <button class="topbar__logout" id="logout-btn" type="button" title="Cerrar sesión" hidden>⏻</button>
+      </div>
     </div>
     <div class="topbar__stats">
       <div class="stat">
@@ -96,12 +163,15 @@
 
   <!-- Módulos del jardín (el orden importa) -->
   <script src="js/config.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/lexicon.js"></script>
   <script src="js/semantics.js"></script>
   <script src="js/lsystem.js"></script>
   <script src="js/db.js"></script>
   <script src="js/garden.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/auth-ui.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

@@ -28,15 +28,12 @@ const DB = (() => {
   }
 
   async function init() {
-    if (CONFIG.hasSupabase && window.supabase) {
+    if (SB) {
       try {
-        client = window.supabase.createClient(
-          CONFIG.SUPABASE_URL,
-          CONFIG.SUPABASE_ANON_KEY
-        );
         // prueba de conexión
-        const { error } = await client.from("plants").select("id").limit(1);
+        const { error } = await SB.from("plants").select("id").limit(1);
         if (error) throw error;
+        client = SB;
         mode = "compartido";
       } catch (e) {
         console.warn("Supabase no disponible, usando modo local:", e.message);

@@ -35,12 +35,13 @@ const UI = (() => {
     }
   }
 
-  /* ---------- Entrada ---------- */
-  $("enter-btn").addEventListener("click", () => {
+  /* ---------- Entrada (tras iniciar sesión, registrarse o entrar como invitado) ---------- */
+  function revealGarden() {
+    if (document.body.classList.contains("is-entered")) return;
     introEl.classList.add("is-hidden");
     document.body.classList.add("is-entered");
     setTimeout(() => input.focus(), 900);
-  });
+  }
 
   /* ---------- Siembra ---------- */
   form.addEventListener("submit", async (e) => {
@@ -122,5 +123,5 @@ const UI = (() => {
     if (e.key === "Escape") specimen.classList.remove("is-open");
   });
 
-  return { showToast, updateStats, openSpecimen };
+  return { showToast, updateStats, openSpecimen, revealGarden };
 })();
