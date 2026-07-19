@@ -208,16 +208,33 @@ const Garden = (() => {
   }
 
   /* ---------- Vaivén: brisa + arqueo hacia la izquierda ---------- */
-  function sway(p, px, py, t) {
+  // lx, ly: coordenadas LOCALES (sin escalar, espacio del genoma) del
+  // punto que se está dibujando — permiten que la sacudida del agua
+  // se sienta solo donde de verdad cayó la gota, no en toda la planta.
+  const IMPACT_LIFE = 900;      // ms que dura la sacudida de un impacto
+  const IMPACT_RADIUS = 20;     // alcance del impacto en unidades locales
+
+  function sway(p, px, py, t, lx = 0, ly = 0) {
     if (reduceMotion) return px;
     const heightFactor = Math.max(0, (groundY - py)) / H;
     const flutter = Math.sin(t * 0.0011 + p.phase + (groundY - py) * 0.012);
     const bend = windNow * 16 * Math.pow(heightFactor, 1.25) * (1 + p.genome.complexity * 0.5);
-    // sacudida al recibir el agua de la regadera (decae sola)
+
+    // sacudida localizada: cada gota que golpeó la planta deja una
+    // pequeña onda que se atenúa con la distancia (al punto exacto
+    // del impacto) y con el tiempo transcurrido.
     let shake = 0;
-    if (p.shakeUntil && t < p.shakeUntil) {
-      const k = (p.shakeUntil - t) / 650;
-      shake = Math.sin(t * 0.055 + p.phase * 9) * (p.shakeAmp || 1.5) * k * 3 * heightFactor;
+    if (p.impacts && p.impacts.length) {
+      for (const imp of p.impacts) {
+        const age = t - imp.t0;
+        if (age < 0 || age > IMPACT_LIFE) continue;
+        const dx = lx - imp.lx, dy = ly - imp.ly;
+        const dist2 = dx * dx + dy * dy;
+        const spatial = Math.exp(-dist2 / (2 * IMPACT_RADIUS * IMPACT_RADIUS));
+        if (spatial < 0.02) continue;
+        const timeFalloff = 1 - age / IMPACT_LIFE;
+        shake += Math.sin(age * 0.05 + dist2 * 0.002) * imp.amp * spatial * timeFalloff * timeFalloff;
+      }
     }
     return px + bend + shake + flutter * 5 * heightFactor * (1 - windNow * 0.5);
   }
@@ -541,7 +558,7 @@ const Garden = (() => {
     for (const l of p.geo.leaves) {
       if (l.cum > budget) continue;
       const lx = baseX + l.x * scale, ly = baseY + l.y * scale;
-      const sx = sway(p, lx, ly, t);
+      const sx = sway(p, lx, ly, t, l.x, l.y);
       ctx.save();
       ctx.translate(sx, ly);
       ctx.rotate(l.a + (reduceMotion ? 0 : Math.sin(t * 0.0013 + l.x) * 0.08 + windNow * 0.10));
@@ -556,7 +573,7 @@ const Garden = (() => {
     // espinas (cactus y rosal)
     for (const sp of p.geo.spines) {
       if (sp.cum > budget) continue;
-      const sx = sway(p, baseX + sp.x * scale, baseY + sp.y * scale, t);
+      const sx = sway(p, baseX + sp.x * scale, baseY + sp.y * scale, t, sp.x, sp.y);
       const sy = baseY + sp.y * scale;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
@@ -570,7 +587,7 @@ const Garden = (() => {
     const style = styleOf(p.genome);
     for (const b of p.geo.blooms) {
       if (b.cum > budget) continue;
-      const bx = sway(p, baseX + b.x * scale, baseY + b.y * scale, t);
+      const bx = sway(p, baseX + b.x * scale, baseY + b.y * scale, t, b.x, b.y);
       const by = baseY + b.y * scale;
       drawBloom(p, b, bx, by, t);
 
@@ -616,9 +633,9 @@ const Garden = (() => {
   }
 
   function strokeSeg(p, s, x2raw, y2raw, baseX, baseY, scale, t, light) {
-    const x1 = sway(p, baseX + s.x1 * scale, baseY + s.y1 * scale, t);
+    const x1 = sway(p, baseX + s.x1 * scale, baseY + s.y1 * scale, t, s.x1, s.y1);
     const y1 = baseY + s.y1 * scale;
-    const x2 = sway(p, baseX + x2raw * scale, baseY + y2raw * scale, t);
+    const x2 = sway(p, baseX + x2raw * scale, baseY + y2raw * scale, t, x2raw, y2raw);
     const y2 = baseY + y2raw * scale;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
@@ -695,7 +712,7 @@ const Garden = (() => {
   function bloomWorldPos(p, b, t) {
     const { baseX, baseY, scale } = plantTransform(p);
     return {
-      x: sway(p, baseX + b.x * scale, baseY + b.y * scale, t),
+      x: sway(p, baseX + b.x * scale, baseY + b.y * scale, t, b.x, b.y),
       y: baseY + b.y * scale,
     };
   }
@@ -970,10 +987,18 @@ const Garden = (() => {
         const hit = splashOnPlant(d);
         if (hit) {
           const p = hit.p;
-          if (t > (p.shakeUntil || 0)) p.shakeAmp = 0;
-          p.shakeAmp = Math.min(3.4, (p.shakeAmp || 0) + 0.5);
-          p.shakeUntil = t + 650;
           p.wateredUntil = t + 5200;
+
+          // sacudida localizada: solo el punto exacto del golpe
+          // (y lo que quede cerca, ver IMPACT_RADIUS) se mueve
+          if (!p.impacts) p.impacts = [];
+          p.impacts.push({
+            lx: (d.x - hit.baseX) / hit.scale,
+            ly: (d.y - hit.baseY) / hit.scale,
+            t0: t,
+            amp: 2.2 + Math.random() * 1.4,
+          });
+          if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
 
           if (Math.random() < 0.3 && clings.length < 70) {
             clings.push({
@@ -1067,7 +1092,7 @@ const Garden = (() => {
       const { baseX, baseY, scale } = plantTransform(c.p);
       c.ly += c.slide;   // resbala lentamente hacia abajo
       c.life -= 0.0035;
-      const x = sway(c.p, baseX + c.lx * scale, baseY + c.ly * scale, t);
+      const x = sway(c.p, baseX + c.lx * scale, baseY + c.ly * scale, t, c.lx, c.ly);
       const y = baseY + c.ly * scale;
 
       if (y >= groundY) {
