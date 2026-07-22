@@ -25,14 +25,87 @@ const Garden = (() => {
   let bees = [];          // abejas recolectoras
   let startTime = performance.now();
   let windNow = -0.7;     // negativo = hacia la izquierda
+  let gustNow = 0;        // 0..1, intensidad de la corriente de aire marcada
+  let airCurrents = [];   // estelas elegantes de la corriente, con parallax
+  let lastGustCycle = -1;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- Corriente de aire marcada, cada 5 s ---------- */
+  const GUST_PERIOD = 5000;    // cadencia de la corriente
+  const GUST_DURATION = 2200;  // cuánto dura cada pasada
+  const GUST_STRENGTH = 2.0;   // empuje extra hacia la izquierda en su punto álgido
+
+  function gustEnvelope(elapsed) {
+    const cyclePos = elapsed % GUST_PERIOD;
+    // media onda de seno: sube y baja con suavidad, sin golpes secos
+    return cyclePos < GUST_DURATION ? Math.sin(Math.PI * (cyclePos / GUST_DURATION)) : 0;
+  }
+
+  function spawnAirCurrents(t) {
+    if (reduceMotion) return;
+    for (let depth = 0; depth < 3; depth++) {
+      const n = 2 + depth;
+      for (let i = 0; i < n; i++) {
+        airCurrents.push({
+          x: W + Math.random() * 240,
+          y: H * (0.1 + Math.random() * 0.62),
+          len: 100 + Math.random() * 150 - depth * 22,
+          speed: 2.4 + depth * 1.15 + Math.random() * 0.7,
+          amp: 7 + Math.random() * 11,
+          ph: Math.random() * Math.PI * 2,
+          depth,
+          spawnT: t,
+        });
+      }
+    }
+  }
+
+  function drawAirCurrents(t) {
+    for (let i = airCurrents.length - 1; i >= 0; i--) {
+      const c = airCurrents[i];
+      c.x -= c.speed;
+      const age = t - c.spawnT;
+      if (c.x < -c.len - 60 || age > GUST_DURATION + 900) { airCurrents.splice(i, 1); continue; }
+
+      const alpha = (0.11 + c.depth * 0.075) * gustNow;
+      if (alpha < 0.004) continue;
+
+      const wob = Math.sin(t * 0.0026 + c.ph) * c.amp * 0.3;
+      const x2 = c.x - c.len, y2 = c.y + wob;
+      const midX = (c.x + x2) / 2, midY = c.y + wob * 1.7;
+
+      // halo suave detrás, luego el hilo nítido encima — se lee como
+      // una corriente de aire visible, no una simple línea
+      for (const [w, a] of [[3.6 + c.depth, alpha * 0.4], [1 + c.depth * 0.55, alpha]]) {
+        const grad = ctx.createLinearGradient(c.x, c.y, x2, y2);
+        grad.addColorStop(0, "rgba(224, 236, 222, 0)");
+        grad.addColorStop(0.32, `rgba(224, 236, 222, ${a})`);
+        grad.addColorStop(0.68, `rgba(224, 236, 222, ${a})`);
+        grad.addColorStop(1, "rgba(224, 236, 222, 0)");
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y);
+        ctx.quadraticCurveTo(midX, midY, x2, y2);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = w;
+        ctx.stroke();
+      }
+    }
+  }
 
   /* ---------- Viento del oeste ---------- */
   function windField(t) {
-    // brisa constante + ráfagas lentas; siempre sopla a la izquierda
+    // brisa constante + ráfagas lentas de fondo; siempre sopla a la izquierda
     const slow = Math.sin(t * 0.00021);
     const gust = Math.sin(t * 0.00063 + 1.7) * Math.sin(t * 0.00017 + 0.4);
-    return -(0.55 + Math.max(0, slow) * 0.5 + Math.max(0, gust) * 0.9);
+    const base = -(0.55 + Math.max(0, slow) * 0.5 + Math.max(0, gust) * 0.9);
+
+    // corriente marcada, con cadencia fija de 5 s
+    const elapsed = t - startTime;
+    gustNow = gustEnvelope(elapsed);
+    const cycle = Math.floor(elapsed / GUST_PERIOD);
+    if (cycle !== lastGustCycle) { lastGustCycle = cycle; spawnAirCurrents(t); }
+
+    return base - gustNow * GUST_STRENGTH;
   }
 
   /* ---------- Paleta según especie y ánimo ---------- */
@@ -657,16 +730,17 @@ const Garden = (() => {
       const by = baseY + b.y * scale;
       drawBloom(p, b, bx, by, t);
 
-      // el viento arranca pétalos y semillas de vez en cuando
+      // el viento arranca pétalos y semillas de vez en cuando —
+      // y bastante más cuando pasa una corriente de aire marcada
       if (!reduceMotion && growth >= 1 && petals.length < 40) {
-        if (style === "puff" && Math.random() < 0.006) {
+        if (style === "puff" && Math.random() < 0.006 + gustNow * 0.05) {
           petals.push({
             x: bx, y: by, sp: 1.6 + Math.random() * 1.2,
             vy: -0.12 + Math.random() * 0.2, rot: 0, vr: 0,
             ph: Math.random() * Math.PI * 2, life: 1, seed: true,
           });
         } else if (["petal", "rose", "orchid", "sun"].includes(style) &&
-                   Math.random() < (watered ? 0.012 : 0.0028)) {
+                   Math.random() < (watered ? 0.012 : 0.0028) + gustNow * 0.012) {
           petals.push({
             x: bx, y: by, sp: 1.1 + Math.random() * 1.1,
             vy: 0.16 + Math.random() * 0.22,
@@ -1638,6 +1712,7 @@ const Garden = (() => {
     drawBees(t);
     drawPollen(t, light);
     drawFallenBranches(t);
+    drawAirCurrents(t);
     updateWatering(t);
     drawWater(t);
     drawWateringCan(t);
@@ -1665,5 +1740,7 @@ const Garden = (() => {
     get waterCount() { return water.length; },
     get pruner() { return pruner; },
     get fallenBranches() { return fallenBranches; },
+    get gustNow() { return gustNow; },
+    get airCurrents() { return airCurrents; },
   };
 })();
