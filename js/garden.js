@@ -913,7 +913,7 @@ const Garden = (() => {
     x: 0, y: 0, tx: 0, ty: 0,
     snipT: -1e9,   // instante del último tijeretazo (anima el cierre)
   };
-  let cuttings = [];   // recortes que caen dando tumbos
+  let fallenBranches = [];   // ramas podadas: caen como una pieza entera y se posan
 
   const watererEl = document.getElementById("waterer");
   const waterToggle = document.getElementById("water-toggle");
@@ -1305,109 +1305,146 @@ const Garden = (() => {
     if (!best) return;
 
     const { p, baseX, baseY, scale } = best;
-    cutFrom(p, (tip.x - baseX) / scale, (tip.y - baseY) / scale, 26 / scale,
+    cutFrom(p, (tip.x - baseX) / scale, (tip.y - baseY) / scale, 34 / scale,
             baseX, baseY, scale, t);
   }
 
+  // corta todo lo que quede dentro de un radio del punto de corte —
+  // se desprende como una rama entera y coherente, no motas sueltas.
   function cutFrom(p, lx, ly, R, baseX, baseY, scale, t) {
     const R2 = R * R;
     const geo = p.geo;
-    const stemCol = stemColor(p.genome, 0.6);
-    const style = styleOf(p.genome);
-    let cut = 0;
 
-    const dropCutting = (wx, wy, type, col, len) => {
-      if (cuttings.length >= 80) return;
-      cuttings.push({
-        x: wx, y: wy, type, col, len: len || 6,
-        vx: (Math.random() - 0.5) * 0.8 + windNow * 0.3,
-        vy: -(0.2 + Math.random() * 0.5),
-        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.18,
-        life: 1,
-      });
-    };
-
-    geo.segments = geo.segments.filter((s) => {
-      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
-      const dx = mx - lx, dy = my - ly;
-      if (dx * dx + dy * dy < R2) {
-        dropCutting(baseX + mx * scale, baseY + my * scale, "stem", stemCol,
-                    Math.hypot(s.x2 - s.x1, s.y2 - s.y1) * scale);
-        cut++;
-        return false;
-      }
-      return true;
-    });
     const near = (o, extra = 0) => {
       const dx = o.x - lx, dy = o.y - ly;
       return dx * dx + dy * dy < R2 + extra;
     };
+
+    const cutSegs = [], cutLeaves = [], cutBlooms = [], cutSpines = [];
+    geo.segments = geo.segments.filter((s) => {
+      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
+      if (near({ x: mx, y: my })) { cutSegs.push(s); return false; }
+      return true;
+    });
     geo.leaves = geo.leaves.filter((l) => {
-      if (near(l, 12)) {
-        dropCutting(baseX + l.x * scale, baseY + l.y * scale, "leaf",
-                    leafColor(p.genome, 0.8));
-        cut++;
-        return false;
-      }
+      if (near(l, 12)) { cutLeaves.push(l); return false; }
       return true;
     });
     geo.blooms = geo.blooms.filter((b) => {
-      if (near(b, 12)) {
-        dropCutting(baseX + b.x * scale, baseY + b.y * scale, "bloom",
-                    petalRGBA(style, p.genome) + "0.9)");
-        cut++;
-        return false;
-      }
+      if (near(b, 12)) { cutBlooms.push(b); return false; }
       return true;
     });
-    geo.spines = geo.spines.filter((sp) => !near(sp));
+    geo.spines = geo.spines.filter((sp) => {
+      if (near(sp, 12)) { cutSpines.push(sp); return false; }
+      return true;
+    });
 
-    if (cut) {
-      // la planta acusa el tijeretazo con una ondulación suave
-      if (!p.impacts) p.impacts = [];
-      p.impacts.push({ lx, ly, t0: t, amp: 1.2 });
-      if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
-    }
+    if (!cutSegs.length && !cutLeaves.length && !cutBlooms.length && !cutSpines.length) return;
+
+    // la pieza cortada guarda sus formas relativas al punto de corte
+    // (pivote), para caer y girar como un objeto rígido
+    fallenBranches.push({
+      genome: p.genome,
+      scale,
+      x: baseX + lx * scale, y: baseY + ly * scale,
+      rot: 0,
+      vx: (Math.random() - 0.5) * 0.35 + windNow * 0.5,
+      vy: 0.12 + Math.random() * 0.12,
+      vr: (Math.random() - 0.5) * 0.045,
+      landed: false, restT: 0, life: 1,
+      segments: cutSegs.map((s) => ({
+        x1: s.x1 - lx, y1: s.y1 - ly, x2: s.x2 - lx, y2: s.y2 - ly, w: s.w, hook: s.hook,
+      })),
+      leaves: cutLeaves.map((l) => ({ x: l.x - lx, y: l.y - ly, a: l.a })),
+      blooms: cutBlooms.map((b) => ({ x: b.x - lx, y: b.y - ly, big: b.big })),
+      spines: cutSpines.map((sp) => ({ x: sp.x - lx, y: sp.y - ly, a: sp.a })),
+    });
+    if (fallenBranches.length > 6) fallenBranches.shift();
+
+    // la planta acusa el tijeretazo con una ondulación suave
+    if (!p.impacts) p.impacts = [];
+    p.impacts.push({ lx, ly, t0: t, amp: 1.2 });
+    if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
   }
 
-  function drawCuttings(t) {
-    for (let i = cuttings.length - 1; i >= 0; i--) {
-      const c = cuttings[i];
-      c.vy += 0.07;
-      c.x += c.vx + windNow * 0.25;
-      c.y += c.vy;
-      c.rot += c.vr;
-      if (c.y >= groundY + 4) { c.y = groundY + 4; c.vy = 0; c.vx *= 0.9; c.vr *= 0.85; c.life -= 0.02; }
-      else c.life -= 0.002;
-      if (c.life <= 0) { cuttings.splice(i, 1); continue; }
+  function fallenWorldPoint(fb, lx, ly) {
+    const sx = lx * fb.scale, sy = ly * fb.scale;
+    const c = Math.cos(fb.rot), s = Math.sin(fb.rot);
+    return { x: fb.x + sx * c - sy * s, y: fb.y + sx * s + sy * c };
+  }
 
-      const a = Math.min(1, c.life * 1.6);
-      ctx.save();
-      ctx.translate(c.x, c.y);
-      ctx.rotate(c.rot);
-      if (c.type === "stem") {
-        ctx.beginPath();
-        ctx.moveTo(-c.len / 2, 0);
-        ctx.lineTo(c.len / 2, 0);
-        ctx.strokeStyle = c.col;
-        ctx.globalAlpha = a;
-        ctx.lineWidth = 1.6;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      } else if (c.type === "leaf") {
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 4.6, 1.8, 0, 0, Math.PI * 2);
-        ctx.fillStyle = c.col;
-        ctx.globalAlpha = a;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+  const REST_MS = 5000;   // cuánto queda tendida en el pasto antes de desvanecerse
+
+  function drawFallenBranches(t) {
+    for (let i = fallenBranches.length - 1; i >= 0; i--) {
+      const fb = fallenBranches[i];
+
+      if (!fb.landed) {
+        fb.vy += 0.045;
+        fb.x += fb.vx + windNow * 0.12;
+        fb.y += fb.vy;
+        fb.rot += fb.vr;
+        fb.vr *= 0.994;
+
+        let lowest = -1e9;
+        for (const s of fb.segments) lowest = Math.max(lowest, fallenWorldPoint(fb, s.x1, s.y1).y, fallenWorldPoint(fb, s.x2, s.y2).y);
+        for (const l of fb.leaves) lowest = Math.max(lowest, fallenWorldPoint(fb, l.x, l.y).y);
+        for (const b of fb.blooms) lowest = Math.max(lowest, fallenWorldPoint(fb, b.x, b.y).y);
+        if (lowest === -1e9) lowest = fb.y;
+
+        if (lowest >= groundY) {
+          fb.y -= lowest - groundY;   // apoya la pieza justo sobre el pasto
+          fb.vy = 0; fb.vx *= 0.35; fb.vr *= 0.25;
+          fb.landed = true;
+          splashes.push({ ripple: true, x: fb.x, y: groundY + 2, r: 3, life: 0.5 });
+        }
       } else {
+        fb.x += fb.vx; fb.vx *= 0.8;
+        fb.rot += fb.vr; fb.vr *= 0.8;
+        fb.restT += 16.7;
+        if (fb.restT > REST_MS) fb.life -= 0.012;
+      }
+
+      if (fb.life <= 0) { fallenBranches.splice(i, 1); continue; }
+      const a = Math.min(1, fb.life * 1.4);
+      const g = fb.genome, fakeP = { genome: g };
+
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.lineCap = "round";
+      for (const s of fb.segments) {
+        const p1 = fallenWorldPoint(fb, s.x1, s.y1), p2 = fallenWorldPoint(fb, s.x2, s.y2);
         ctx.beginPath();
-        ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
-        ctx.fillStyle = c.col;
-        ctx.globalAlpha = a;
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = s.hook ? "rgba(227, 199, 102, 0.85)" : stemColor(g, 0.55);
+        ctx.lineWidth = Math.max(0.7, s.w * fb.scale * 0.5);
+        ctx.stroke();
+      }
+      for (const l of fb.leaves) {
+        const wp = fallenWorldPoint(fb, l.x, l.y);
+        ctx.save();
+        ctx.translate(wp.x, wp.y);
+        ctx.rotate(l.a + fb.rot);
+        const L = 5.5 * fb.scale * (g.species === "loto" ? 1.45 : 0.9);
+        ctx.beginPath();
+        ctx.ellipse(L * 0.6, 0, L, L * (g.species === "loto" ? 0.62 : 0.36), 0, 0, Math.PI * 2);
+        ctx.fillStyle = leafColor(g, g.leafAlpha * 0.85);
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+      for (const sp of fb.spines) {
+        const wp = fallenWorldPoint(fb, sp.x, sp.y);
+        ctx.beginPath();
+        ctx.moveTo(wp.x, wp.y);
+        ctx.lineTo(wp.x + Math.cos(sp.a + fb.rot) * 4.5, wp.y + Math.sin(sp.a + fb.rot) * 4.5);
+        ctx.strokeStyle = "rgba(216, 228, 214, 0.55)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      for (const b of fb.blooms) {
+        const wp = fallenWorldPoint(fb, b.x, b.y);
+        drawBloom(fakeP, b, wp.x, wp.y, t);
       }
       ctx.restore();
     }
@@ -1600,7 +1637,7 @@ const Garden = (() => {
     updateBees(t);
     drawBees(t);
     drawPollen(t, light);
-    drawCuttings(t);
+    drawFallenBranches(t);
     updateWatering(t);
     drawWater(t);
     drawWateringCan(t);
@@ -1627,5 +1664,6 @@ const Garden = (() => {
     get watering() { return watering; },
     get waterCount() { return water.length; },
     get pruner() { return pruner; },
+    get fallenBranches() { return fallenBranches; },
   };
 })();
