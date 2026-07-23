@@ -23,6 +23,8 @@ const Garden = (() => {
   let gusts = [];         // estelas visibles de viento
   let grass = [];         // briznas de pasto en dos capas
   let bees = [];          // abejas recolectoras
+  let butterflies = [];   // mariposas que vuelan en manada
+  let flocks = [];        // centros de manada que deambulan por el jardín
   let startTime = performance.now();
   let windNow = -0.7;     // negativo = hacia la izquierda
   let gustNow = 0;        // 0..1, intensidad de la corriente de aire marcada
@@ -987,6 +989,181 @@ const Garden = (() => {
     }
   }
 
+  /* ---------- Mariposas en manada ----------
+     Vuelan en nubes sueltas que deambulan sobre el pasto y las flores.
+     Al recibir agua de la regadera se dispersan asustadas y, tras
+     cerca de un minuto, la cohesión regresa y se reagrupan solas. */
+  const BUTTERFLY_COLORS = [
+    ["rgba(232, 176, 72,",  "rgba(248, 216, 138,"],  // ámbar
+    ["rgba(214, 108, 146,", "rgba(244, 172, 198,"],  // pétalo
+    ["rgba(146, 132, 208,", "rgba(202, 192, 240,"],  // violeta pizarra
+    ["rgba(228, 232, 236,", "rgba(250, 250, 250,"],  // marfil (contraste)
+    ["rgba(220, 132, 88,",  "rgba(244, 188, 146,"],  // cobre
+  ];
+  const SCARE_DECAY = 1 / 3600;   // de 1 a 0 en ~60 s (a 60 fps)
+
+  function retargetFlock(f, t) {
+    f.tx = W * (0.12 + Math.random() * 0.76);
+    f.ty = groundY - 55 - Math.random() * 175;
+    f.retargetT = t + 4200 + Math.random() * 4200;
+  }
+  function seedFlocks() {
+    const count = W < 720 ? 1 : 2;
+    flocks = Array.from({ length: count }, () => {
+      const f = { x: 0, y: 0, tx: 0, ty: 0, retargetT: 0 };
+      retargetFlock(f, 0);
+      f.x = f.tx; f.y = f.ty;
+      return f;
+    });
+  }
+  function spawnButterfly(fi) {
+    const f = flocks[fi];
+    return {
+      fi,
+      x: f.x + (Math.random() - 0.5) * 70, y: f.y + (Math.random() - 0.5) * 50,
+      vx: 0, vy: 0,
+      ang: Math.random() * Math.PI * 2, rad: 12 + Math.random() * 30,
+      bob: Math.random() * Math.PI * 2, ph: Math.random() * Math.PI * 2,
+      flapPh: Math.random() * Math.PI * 2, flap: 0.7 + Math.random() * 0.5,
+      size: 1.05 + Math.random() * 0.6,
+      scare: 0, fleeX: 0, fleeY: 0,
+      col: BUTTERFLY_COLORS[(Math.random() * BUTTERFLY_COLORS.length) | 0],
+    };
+  }
+
+  function updateButterflies(t) {
+    if (reduceMotion) { butterflies.length = 0; return; }
+    if (!flocks.length) seedFlocks();
+
+    const per = 5;
+    const want = plants.length ? flocks.length * per : 0;
+    while (butterflies.length < want) butterflies.push(spawnButterfly((Math.random() * flocks.length) | 0));
+    if (butterflies.length > want) butterflies.length = want;
+
+    for (const f of flocks) {
+      if (t > f.retargetT) retargetFlock(f, t);
+      f.x += (f.tx - f.x) * 0.008;
+      f.y += (f.ty - f.y) * 0.008;
+    }
+
+    const spraying = watering.active && watering.spraying;
+    const tip = spraying ? spoutTip() : null;
+
+    for (const b of butterflies) {
+      const f = flocks[b.fi] || flocks[0];
+
+      // susto por agua: si la alcachofa o el chorro pasan cerca, huye.
+      // El chorro sale hacia la izquierda del pico, así que la zona de
+      // alarma se extiende hacia esa dirección.
+      if (tip && b.scare < 0.6) {
+        let hitx = 0, hity = 0, hit = false;
+        const tdx = b.x - tip.x, tdy = b.y - tip.y;
+        if (tdx * tdx + tdy * tdy < 120 * 120) { hit = true; hitx = tdx; hity = tdy; }
+        // franja a la izquierda del pico (por donde viaja el agua)
+        else if (b.x < tip.x && b.x > tip.x - 260 && Math.abs(b.y - tip.y) < 90) {
+          hit = true; hitx = -1; hity = (b.y < tip.y ? -0.4 : 0.4);
+        }
+        if (hit) {
+          b.scare = 1;
+          const m = Math.hypot(hitx, hity) || 1;
+          b.fleeX = hitx / m; b.fleeY = hity / m;
+        }
+      }
+
+      // punto de reposo dentro de la nube de la manada
+      b.ang += 0.01 + Math.sin(t * 0.0005 + b.ph) * 0.008;
+      b.bob += 0.03;
+      const homeX = f.x + Math.cos(b.ang) * b.rad;
+      const homeY = f.y + Math.sin(b.ang * 1.3) * b.rad * 0.55 + Math.sin(b.bob) * 4;
+
+      const cohesion = 1 - b.scare;   // asustada → sin cohesión, dispersa
+      let ax = (homeX - b.x) * 0.025 * cohesion;
+      let ay = (homeY - b.y) * 0.025 * cohesion;
+
+      // revoloteo errático, más nervioso cuando está asustada
+      const jitter = 0.06 + b.scare * 0.12;
+      ax += Math.sin(t * 0.006 + b.ph) * jitter;
+      ay += Math.cos(t * 0.008 + b.ph * 1.7) * jitter;
+
+      // huida del agua
+      if (b.scare > 0.01) {
+        ax += b.fleeX * 0.34 * b.scare;
+        ay += b.fleeY * 0.34 * b.scare - 0.06 * b.scare;  // tiende a elevarse al huir
+        b.scare = Math.max(0, b.scare - SCARE_DECAY);
+      }
+
+      b.vx = (b.vx + ax) * 0.92;
+      b.vy = (b.vy + ay) * 0.92;
+      const maxsp = 1.3 + b.scare * 2.6;
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > maxsp) { b.vx *= maxsp / sp; b.vy *= maxsp / sp; }
+      b.x += b.vx + windNow * 0.05;
+      b.y += b.vy;
+
+      // fronteras suaves: no bajar del pasto ni subir al cielo alto
+      if (b.y > groundY - 4) { b.y = groundY - 4; b.vy -= 0.4; }
+      if (b.y < H * 0.1) b.vy += 0.25;
+      if (b.x < -24) b.vx += 0.3;
+      if (b.x > W + 24) b.vx -= 0.3;
+    }
+  }
+
+  function drawButterflies(t) {
+    for (const b of butterflies) {
+      const s = b.size;
+      // aleteo: las alas pasan de extendidas (1) a plegadas (~0.3)
+      const flap = 0.32 + 0.68 * Math.abs(Math.sin(t * 0.019 * b.flap + b.flapPh));
+      const [c0, c1] = b.col;
+
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(Math.max(-0.55, Math.min(0.55, b.vx * 0.11)));
+
+      // sombra suave bajo la mariposa: la separa del follaje
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5.2 * s * flap + 1.5, 4.2 * s, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(6, 12, 9, 0.28)";
+      ctx.fill();
+
+      for (const side of [-1, 1]) {
+        // ala superior
+        ctx.beginPath();
+        ctx.ellipse(side * 3.1 * s * flap, -1.7 * s, 3.5 * s * flap, 2.5 * s, side * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = c1 + "0.95)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(30, 26, 18, 0.5)";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        // ala inferior
+        ctx.beginPath();
+        ctx.ellipse(side * 2.3 * s * flap, 1.9 * s, 2.5 * s * flap, 2.0 * s, side * -0.35, 0, Math.PI * 2);
+        ctx.fillStyle = c0 + "0.96)";
+        ctx.fill();
+        ctx.stroke();
+        // lunar claro en el ala superior
+        ctx.beginPath();
+        ctx.ellipse(side * 3.4 * s * flap, -1.9 * s, 0.9 * s * flap, 0.7 * s, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.fill();
+      }
+      // cuerpo
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 0.9 * s, 3.2 * s, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(34, 28, 20, 0.95)";
+      ctx.fill();
+      // antenas
+      ctx.strokeStyle = "rgba(38, 32, 22, 0.7)";
+      ctx.lineWidth = 0.45;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(0, -2.6 * s);
+        ctx.quadraticCurveTo(side * 2 * s, -4.6 * s, side * 2.7 * s, -4.1 * s);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
   /* ---------- Regadera con manguera ---------- */
   const watering = {
     active: false, spraying: false,
@@ -1731,6 +1908,8 @@ const Garden = (() => {
     drawDrops();
     drawMotes(t);
     drawPetals(t);
+    updateButterflies(t);
+    drawButterflies(t);
     updateBees(t);
     drawBees(t);
     drawPollen(t, light);
@@ -1765,5 +1944,7 @@ const Garden = (() => {
     get fallenBranches() { return fallenBranches; },
     get gustNow() { return gustNow; },
     get airCurrents() { return airCurrents; },
+    get butterflies() { return butterflies; },
+    get flocks() { return flocks; },
   };
 })();
