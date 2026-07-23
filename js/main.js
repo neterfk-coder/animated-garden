@@ -31,6 +31,7 @@
   DB.onNewPlant((record) => {
     if (!record.genome) return;
     Garden.addPlant(record, { mine: false, animate: true });
+    if (window.Ambience) Ambience.chime(record.genome);
     UI.updateStats();
     UI.showToast(I18N.t("toast.someone", { latin: record.genome.latin }));
   });

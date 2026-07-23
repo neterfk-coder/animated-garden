@@ -78,6 +78,42 @@ html, body {
 }
 .lang-switch button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
+/* ---------- Sonido ambiental ---------- */
+.sound-toggle {
+  position: fixed;
+  left: 1.6rem;
+  bottom: 1.6rem;
+  z-index: 70;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: color 0.3s, border-color 0.3s, box-shadow 0.3s,
+              opacity 0.9s var(--ease-soft) 1s, transform 0.9s var(--ease-soft) 1s;
+  pointer-events: none;
+}
+body.is-entered .sound-toggle { opacity: 1; transform: none; pointer-events: auto; }
+.sound-toggle:hover { color: var(--ink); }
+.sound-toggle.is-on {
+  color: var(--brass-soft);
+  border-color: rgba(201, 162, 39, 0.5);
+  box-shadow: 0 0 22px rgba(201, 162, 39, 0.18);
+}
+.sound-toggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+.sound-toggle .sound-wave { transition: opacity 0.3s; }
+.sound-toggle.is-off .sound-wave { opacity: 0; }
+.sound-toggle .sound-slash { opacity: 0; transition: opacity 0.3s; }
+.sound-toggle.is-off .sound-slash { opacity: 0.75; }
+
 /* ---------- Lienzo ---------- */
 #garden {
   position: fixed;

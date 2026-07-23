@@ -59,6 +59,7 @@ const UI = (() => {
       const genome = Semantics.toGenome(phrase, analysis);
       const record = await DB.savePlant({ phrase, genome, x: 0.08 + Math.random() * 0.84 });
       const plant = Garden.addPlant(record, { mine: true, animate: true });
+      if (window.Ambience) Ambience.chime(genome);
       updateStats();
       input.value = "";
       showToast(I18N.t("toast.germinated", {

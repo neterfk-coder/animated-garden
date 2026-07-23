@@ -101,6 +101,7 @@ const I18N = (() => {
       "water.toggle": "Regadera — riega tus plantas",
       "water.pressure": "Presión del agua",
       "prune.toggle": "Tijeras de podar — recorta tus plantas",
+      "sound.toggle": "Sonido ambiental — el jardín suena según su ánimo",
 
       "species.flor": "Flor de ánimo luminoso",
       "species.sauce": "Sauce de melancolía",
@@ -213,6 +214,7 @@ const I18N = (() => {
       "water.toggle": "Watering can — water your plants",
       "water.pressure": "Water pressure",
       "prune.toggle": "Pruning shears — trim your plants",
+      "sound.toggle": "Ambient sound — the garden plays to its mood",
 
       "species.flor": "Flower of radiant spirit",
       "species.sauce": "Willow of melancholy",

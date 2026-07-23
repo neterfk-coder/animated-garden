@@ -2159,6 +2159,7 @@ const Garden = (() => {
     get pruner() { return pruner; },
     get fallenBranches() { return fallenBranches; },
     get gustNow() { return gustNow; },
+    get windNow() { return windNow; },
     get airCurrents() { return airCurrents; },
     get butterflies() { return butterflies; },
     get flocks() { return flocks; },

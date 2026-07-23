@@ -21,6 +21,18 @@
     <button type="button" data-lang="en">EN</button>
   </div>
 
+  <!-- Sonido ambiental -->
+  <button class="sound-toggle is-off" id="sound-toggle" type="button" aria-pressed="false"
+          data-i18n-title="sound.toggle" title="Sonido ambiental">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 9v6h4l5 4V5L8 9H4z"/>
+      <path class="sound-wave" d="M16.5 8.5a5 5 0 0 1 0 7"/>
+      <path class="sound-wave" d="M19 6a8 8 0 0 1 0 12"/>
+      <path class="sound-slash" d="M3 3l18 18"/>
+    </svg>
+  </button>
+
   <!-- Lienzo del jardín (ocupa toda la pantalla) -->
   <canvas id="garden" data-i18n-aria-label="canvas.ariaLabel" aria-label="Jardín de plantas generadas por frases"></canvas>
 
@@ -205,6 +217,7 @@
   <!-- Módulos del jardín (el orden importa) -->
   <script src="js/config.js"></script>
   <script src="js/i18n.js"></script>
+  <script src="js/audio.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/lexicon.js"></script>
