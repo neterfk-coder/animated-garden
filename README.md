@@ -87,7 +87,7 @@ jardin-semantico/
 │   ├── semantics.js      # frase → genoma (con IA opcional + respaldo local)
 │   ├── lsystem.js        # L-system: genoma → geometría vegetal
 │   ├── db.js             # Supabase + modo local automático
-│   ├── garden.js         # render: viento, día/noche, polen, raíces, abejas, mariposas
+│   ├── garden.js         # render: viento, día/noche, estrellas, polen, raíces, abejas, mariposas
 │   ├── ui.js             # siembra, ficha de herbario, avisos
 │   └── main.js           # arranque
 ├── api/analyze.js        # serverless Vercel → API de Groq (opcional)

@@ -22,10 +22,12 @@ const Garden = (() => {
   let petals = [];        // pétalos y semillas arrastrados por el viento
   let gusts = [];         // estelas visibles de viento
   let grass = [];         // briznas de pasto en dos capas
+  let stars = [];         // estrellas que parpadean de noche
   let bees = [];          // abejas recolectoras
   let butterflies = [];   // mariposas que vuelan en manada
   let flocks = [];        // centros de manada que deambulan por el jardín
   let startTime = performance.now();
+  let _forceLight = null; // override del ciclo día/noche (pruebas/depuración)
   let windNow = -0.7;     // negativo = hacia la izquierda
   let gustNow = 0;        // 0..1, intensidad de la corriente de aire marcada
   let airCurrents = [];   // estelas elegantes de la corriente, con parallax
@@ -181,6 +183,33 @@ const Garden = (() => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     groundY = H * 0.8;
     seedGrass();
+    seedStars();
+  }
+
+  /* ---------- Estrellas ----------
+     Salpicadas por el cielo, parpadean a distintos ritmos y se
+     desvanecen al amanecer. Mayoría diminutas, unas pocas brillantes
+     con destello en cruz. */
+  function seedStars() {
+    const n = Math.round(W / 11);
+    stars = Array.from({ length: n }, () => {
+      const bright = Math.random() < 0.14;   // pocas estrellas grandes
+      const tint = Math.random();
+      // blanco cálido por defecto; algunas doradas, otras azuladas
+      const col = tint < 0.18 ? "255, 236, 200"
+                : tint > 0.86 ? "206, 224, 255"
+                : "245, 246, 240";
+      return {
+        x: Math.random() * W,
+        y: Math.random() * (H * 0.60),        // solo la parte alta del cielo
+        r: bright ? 1.2 + Math.random() * 0.9 : 0.4 + Math.random() * 0.8,
+        base: 0.55 + Math.random() * 0.45,
+        twPh: Math.random() * Math.PI * 2,
+        twSpeed: 0.0012 + Math.random() * 0.0034,
+        big: bright,
+        col,
+      };
+    });
   }
 
   /* ---------- Pasto ---------- */
@@ -333,6 +362,32 @@ const Garden = (() => {
     return 0.5 + 0.5 * Math.sin((t / 100000) * Math.PI * 2);
   }
 
+  function drawStars(t, light) {
+    // más brillantes en la noche cerrada, se apagan al amanecer
+    const night = Math.pow(Math.max(0, 1 - light), 1.4);
+    if (night < 0.02) return;
+    for (const s of stars) {
+      const tw = 0.5 + 0.5 * Math.sin(t * s.twSpeed + s.twPh);
+      const a = night * s.base * (0.25 + 0.75 * tw);
+      if (a < 0.02) continue;
+      const r = s.r * (0.7 + 0.3 * tw);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${s.col}, ${a})`;
+      ctx.fill();
+      // destello en cruz de las estrellas grandes en su punto álgido
+      if (s.big && tw > 0.6) {
+        const rays = r * (2.2 + tw * 2.2), ga = a * (tw - 0.6) * 1.4;
+        ctx.strokeStyle = `rgba(${s.col}, ${ga})`;
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(s.x - rays, s.y); ctx.lineTo(s.x + rays, s.y);
+        ctx.moveTo(s.x, s.y - rays); ctx.lineTo(s.x, s.y + rays);
+        ctx.stroke();
+      }
+    }
+  }
+
   function drawSky(light) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
     const topR = 7 + light * 8, topG = 13 + light * 20, topB = 10 + light * 16;
@@ -340,6 +395,9 @@ const Garden = (() => {
     g.addColorStop(1, `rgb(${10 + light*6|0}, ${18 + light*10|0}, ${14 + light*8|0})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+
+    // estrellas (sobre el cielo, bajo la luna)
+    drawStars(performance.now(), light);
 
     // luna / lámpara del invernadero
     const mx = W * 0.82, my = H * 0.16;
@@ -1896,7 +1954,7 @@ const Garden = (() => {
     const t = now;
     frameId++;   // invalida el caché de transformadas del frame anterior
     windNow = reduceMotion ? 0 : windField(t);
-    const light = skyLight(t - startTime);
+    const light = _forceLight != null ? _forceLight : skyLight(t - startTime);
     drawSky(light);
     drawGusts(t, light);
     drawRoots(t);
@@ -1946,5 +2004,6 @@ const Garden = (() => {
     get airCurrents() { return airCurrents; },
     get butterflies() { return butterflies; },
     get flocks() { return flocks; },
+    set forceLight(v) { _forceLight = v; },
   };
 })();
