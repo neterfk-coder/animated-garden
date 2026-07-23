@@ -29,6 +29,7 @@ const Garden = (() => {
   let butterflies = [];   // mariposas que vuelan en manada
   let flocks = [];        // centros de manada que deambulan por el jardín
   let startTime = performance.now();
+  let showConstellation = false;   // vista de clima emocional
   let _forceLight = null; // override del ciclo día/noche (pruebas/depuración)
   let windNow = -0.7;     // negativo = hacia la izquierda
   let gustNow = 0;        // 0..1, intensidad de la corriente de aire marcada
@@ -282,6 +283,12 @@ const Garden = (() => {
         if (s > 0.28) kinLinks.push({ a: i, b: j, strength: s });
       }
     }
+    // conserva solo los vínculos más fuertes: mantiene legible la
+    // constelación y acota el coste de dibujarlos cada frame
+    if (kinLinks.length > 110) {
+      kinLinks.sort((x, y) => y.strength - x.strength);
+      kinLinks.length = 110;
+    }
   }
   function kinOf(index) {
     return kinLinks.filter(l => l.a === index || l.b === index).length;
@@ -487,6 +494,77 @@ const Garden = (() => {
       ctx.lineWidth = 1 + link.strength * 1.6;
       ctx.stroke();
     }
+  }
+
+  /* ---------- Constelación de significado afín ----------
+     Hace visible sobre el jardín lo que normalmente vive bajo tierra:
+     arcos dorados que unen las copas de las plantas cuyas frases se
+     parecen. Se activa desde la vista de "clima emocional". */
+  function plantApex(p, t) {
+    const { baseX, baseY, scale } = plantTransform(p);
+    let apex = p.geo.segments[0];
+    for (const s of p.geo.segments) if (s.y2 < apex.y2) apex = s;
+    return {
+      x: sway(p, baseX + apex.x2 * scale, baseY + apex.y2 * scale, t, apex.x2, apex.y2),
+      y: baseY + apex.y2 * scale,
+    };
+  }
+
+  function drawConstellation(t) {
+    if (!kinLinks.length) return;
+    const pulse = 0.6 + 0.4 * Math.sin(t * 0.0016);
+    for (const link of kinLinks) {
+      const pa = plants[link.a], pb = plants[link.b];
+      if (!pa || !pb) continue;
+      const A = plantApex(pa, t), B = plantApex(pb, t);
+      const midX = (A.x + B.x) / 2, midY = Math.min(A.y, B.y) - 40 - Math.abs(A.x - B.x) * 0.05;
+      const a = (0.12 + link.strength * 0.5) * pulse;
+      // halo tenue
+      ctx.beginPath();
+      ctx.moveTo(A.x, A.y);
+      ctx.quadraticCurveTo(midX, midY, B.x, B.y);
+      ctx.strokeStyle = `rgba(227, 199, 102, ${a * 0.4})`;
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      // hilo nítido
+      ctx.strokeStyle = `rgba(240, 220, 150, ${a})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // nodos luminosos en cada planta con vínculos
+    const nodes = new Set();
+    for (const link of kinLinks) { nodes.add(link.a); nodes.add(link.b); }
+    for (const idx of nodes) {
+      const p = plants[idx];
+      if (!p) continue;
+      const A = plantApex(p, t);
+      const r = 3 + pulse * 1.5;
+      const glow = ctx.createRadialGradient(A.x, A.y, 0, A.x, A.y, r * 3);
+      glow.addColorStop(0, `rgba(240, 220, 150, ${0.5 * pulse})`);
+      glow.addColorStop(1, "rgba(240, 220, 150, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(A.x - r * 3, A.y - r * 3, r * 6, r * 6);
+      ctx.beginPath();
+      ctx.arc(A.x, A.y, 1.6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(248, 236, 190, ${0.7 * pulse})`;
+      ctx.fill();
+    }
+  }
+
+  /* estadísticas del ánimo colectivo, para la vista de clima */
+  function climate() {
+    const grown = plants.filter(p => performance.now() - p.bornAt >= CONFIG.GERMINATION_MS * 0.6);
+    const list = grown.length ? grown : plants;
+    let avg = 0;
+    const species = {};
+    for (const p of list) {
+      avg += p.genome.sentiment || 0;
+      species[p.genome.species] = (species[p.genome.species] || 0) + 1;
+    }
+    avg = list.length ? avg / list.length : 0;
+    const bonds = kinLinks.length;
+    const topSpecies = Object.entries(species).sort((a, b) => b[1] - a[1]);
+    return { count: list.length, avg, bonds, species: topSpecies };
   }
 
   /* ---------- Corolas por estilo ---------- */
@@ -2131,6 +2209,7 @@ const Garden = (() => {
     drawPollen(t, light);
     drawFallenBranches(t);
     drawAirCurrents(t);
+    if (showConstellation) drawConstellation(t);
     updateWatering(t);
     drawWater(t);
     drawWateringCan(t);
@@ -2164,6 +2243,9 @@ const Garden = (() => {
     get butterflies() { return butterflies; },
     get flocks() { return flocks; },
     set forceLight(v) { _forceLight = v; },
+    set constellation(v) { showConstellation = !!v; },
+    get constellation() { return showConstellation; },
+    climate,
     renderCard,
   };
 })();

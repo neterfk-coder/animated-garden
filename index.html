@@ -21,6 +21,17 @@
     <button type="button" data-lang="en">EN</button>
   </div>
 
+  <!-- Clima emocional colectivo -->
+  <button class="climate-toggle" id="climate-toggle" type="button" aria-pressed="false"
+          data-i18n-title="climate.toggle" title="Clima emocional del jardín">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="6" cy="7" r="1.4"/><circle cx="17" cy="6" r="1.4"/>
+      <circle cx="12" cy="13" r="1.4"/><circle cx="19" cy="16" r="1.4"/><circle cx="7" cy="17" r="1.4"/>
+      <path d="M6 7l6 6M17 6l-5 7M12 13l7 3M12 13l-5 4"/>
+    </svg>
+  </button>
+
   <!-- Sonido ambiental -->
   <button class="sound-toggle is-off" id="sound-toggle" type="button" aria-pressed="false"
           data-i18n-title="sound.toggle" title="Sonido ambiental">
@@ -208,6 +219,29 @@
     </div>
   </aside>
 
+  <!-- Clima emocional colectivo -->
+  <aside class="climate" id="climate" aria-live="polite">
+    <div class="climate__card">
+      <button class="specimen__close" id="climate-close" data-i18n-aria-label="climate.close" aria-label="Cerrar clima">×</button>
+      <p class="specimen__tag" data-i18n="climate.tag">Clima del jardín</p>
+      <h2 class="climate__word" id="cl-word">—</h2>
+      <div class="climate__meter">
+        <span class="climate__marker" id="cl-marker"></span>
+      </div>
+      <div class="climate__scale">
+        <span data-i18n="climate.scaleLow">sombrío</span>
+        <span data-i18n="climate.scaleHigh">luminoso</span>
+      </div>
+      <dl class="specimen__data climate__stats">
+        <div><dt data-i18n="climate.specimens">Especímenes</dt><dd id="cl-count">0</dd></div>
+        <div><dt data-i18n="climate.bonds">Vínculos afines</dt><dd id="cl-bonds">0</dd></div>
+      </dl>
+      <p class="climate__label" data-i18n="climate.flora">Flora dominante</p>
+      <div class="climate__species" id="cl-species"></div>
+      <p class="climate__hint" data-i18n="climate.hint">Los hilos dorados unen frases de significado afín, escritas por personas distintas.</p>
+    </div>
+  </aside>
+
   <!-- Aviso de germinación -->
   <div class="toast" id="toast" role="status"></div>
 
@@ -226,6 +260,7 @@
   <script src="js/db.js"></script>
   <script src="js/garden.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/climate.js"></script>
   <script src="js/auth-ui.js"></script>
   <script src="js/main.js"></script>
 </body>
