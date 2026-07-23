@@ -678,6 +678,29 @@ body.is-pruning #garden { cursor: none; }
 }
 .specimen__kin:empty { display: none; }
 
+.specimen__save {
+  display: block;
+  width: 100%;
+  margin-top: 1.1rem;
+  padding: 0.6rem 1rem;
+  background: rgba(201, 162, 39, 0.08);
+  border: 1px solid rgba(201, 162, 39, 0.4);
+  border-radius: 10px;
+  color: var(--brass-soft);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.3s, box-shadow 0.3s, border-color 0.3s;
+}
+.specimen__save:hover {
+  background: rgba(201, 162, 39, 0.16);
+  box-shadow: 0 0 22px rgba(201, 162, 39, 0.18);
+}
+.specimen__save:disabled { opacity: 0.55; cursor: wait; }
+.specimen__save:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;

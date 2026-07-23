@@ -12,7 +12,9 @@
 
 const Garden = (() => {
   const canvas = document.getElementById("garden");
-  const ctx = canvas.getContext("2d");
+  // ctx es mutable: para generar la tarjeta de herbario se apunta
+  // temporalmente a un lienzo aparte y luego se restaura.
+  let ctx = canvas.getContext("2d");
 
   let W = 0, H = 0, dpr = 1, groundY = 0;
   let plants = [];        // {id, phrase, genome, geo, x, phase, bornAt, mine}
@@ -861,6 +863,162 @@ const Garden = (() => {
     ctx.strokeStyle = s.hook ? "rgba(227, 199, 102, 0.85)" : stemColor(p.genome, light);
     ctx.lineWidth = Math.max(0.7, s.w * scale * 0.5);
     ctx.stroke();
+  }
+
+  /* ---------- Planta estática (para la tarjeta de herbario) ----------
+     Igual que drawPlant pero crecida del todo, sin viento ni impactos
+     ni partículas: dibuja en el ctx actual, centrada en (cx, gy). */
+  function drawPlantStatic(p, cx, gy, scale, light) {
+    const g = p.genome;
+    ctx.lineCap = "round";
+    for (const s of p.geo.segments) {
+      ctx.beginPath();
+      ctx.moveTo(cx + s.x1 * scale, gy + s.y1 * scale);
+      ctx.lineTo(cx + s.x2 * scale, gy + s.y2 * scale);
+      ctx.strokeStyle = s.hook ? "rgba(227, 199, 102, 0.85)" : stemColor(g, light);
+      ctx.lineWidth = Math.max(0.8, s.w * scale * 0.5);
+      ctx.stroke();
+    }
+    for (const l of p.geo.leaves) {
+      ctx.save();
+      ctx.translate(cx + l.x * scale, gy + l.y * scale);
+      ctx.rotate(l.a);
+      const isLoto = g.species === "loto";
+      const L = 5.5 * scale * (isLoto ? 1.45 : 0.9);
+      ctx.beginPath();
+      ctx.ellipse(L * 0.6, 0, L, L * (isLoto ? 0.62 : 0.36), 0, 0, Math.PI * 2);
+      ctx.fillStyle = leafColor(g, g.leafAlpha * (0.72 + light * 0.28));
+      ctx.fill();
+      ctx.restore();
+    }
+    for (const sp of p.geo.spines) {
+      const sx = cx + sp.x * scale, sy = gy + sp.y * scale;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.cos(sp.a) * 4.5, sy + Math.sin(sp.a) * 4.5);
+      ctx.strokeStyle = "rgba(216, 228, 214, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    for (const b of p.geo.blooms) {
+      drawBloom(p, b, cx + b.x * scale, gy + b.y * scale, 0);
+    }
+  }
+
+  /* ---------- Tarjeta de herbario compartible ----------
+     Compone una imenagen elegante (planta + datos) en un lienzo
+     aparte y devuelve el <canvas>. mine = ¿la frase es del autor? */
+  async function renderCard(plant, { mine = false } = {}) {
+    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch {} }
+    const g = plant.genome;
+    const CW = 1080, CH = 1350;
+    const off = document.createElement("canvas");
+    off.width = CW; off.height = CH;
+    const prev = ctx;
+    ctx = off.getContext("2d");
+    try {
+      // fondo: invernadero nocturno
+      const bg = ctx.createLinearGradient(0, 0, 0, CH);
+      bg.addColorStop(0, "#0a1510");
+      bg.addColorStop(1, "#070d0a");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, CW, CH);
+
+      // marco de latón
+      ctx.strokeStyle = "rgba(201, 162, 39, 0.5)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(40, 40, CW - 80, CH - 80);
+      ctx.strokeStyle = "rgba(201, 162, 39, 0.18)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(54, 54, CW - 108, CH - 108);
+
+      // eyebrow
+      ctx.fillStyle = "rgba(201, 162, 39, 0.9)";
+      ctx.font = "500 22px 'Spline Sans Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("J A R D Í N   S E M Á N T I C O", CW / 2, 130);
+      ctx.fillStyle = "rgba(139, 163, 147, 0.85)";
+      ctx.font = "400 16px 'Spline Sans Mono', monospace";
+      ctx.fillText("H E R B A R I O   ·   E S P É C I M E N", CW / 2, 162);
+
+      // planta centrada en su recuadro
+      const boxW = 560, boxH = 470, boxCX = CW / 2, boxBottom = 720;
+      const wSpan = Math.max(40, plant.geo.bounds.maxX - plant.geo.bounds.minX);
+      const hSpan = Math.max(60, -plant.geo.bounds.minY);
+      const scale = Math.min(boxW / wSpan, boxH / hSpan);
+      const centerX = (plant.geo.bounds.minX + plant.geo.bounds.maxX) / 2;
+      // aura suave tras la planta
+      const aura = ctx.createRadialGradient(boxCX, boxBottom - 170, 20, boxCX, boxBottom - 170, 300);
+      aura.addColorStop(0, "rgba(127, 169, 142, 0.10)");
+      aura.addColorStop(1, "rgba(127, 169, 142, 0)");
+      ctx.fillStyle = aura; ctx.fillRect(boxCX - 300, boxBottom - 470, 600, 600);
+      drawPlantStatic(plant, boxCX - centerX * scale, boxBottom, scale, 0.7);
+      // línea de tierra
+      ctx.strokeStyle = "rgba(216, 228, 214, 0.18)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(boxCX - 260, boxBottom + 6); ctx.lineTo(boxCX + 260, boxBottom + 6); ctx.stroke();
+
+      // nombre latino
+      ctx.fillStyle = "#e7efe5";
+      ctx.font = "italic 400 62px 'Italiana', serif";
+      ctx.fillText(g.latin, CW / 2, boxBottom + 90);
+      // especie
+      ctx.fillStyle = "rgba(127, 169, 142, 0.95)";
+      ctx.font = "400 26px 'Figtree', sans-serif";
+      ctx.fillText(I18N.t("species." + g.species), CW / 2, boxBottom + 132);
+
+      // datos
+      const s = g.sentiment;
+      const senti = s > 0.25 ? I18N.t("specimen.sentimentBright", { v: s.toFixed(2) })
+                  : s < -0.25 ? I18N.t("specimen.sentimentDark", { v: s.toFixed(2) })
+                  : I18N.t("specimen.sentimentCalm", { v: s.toFixed(2) });
+      const cplx = g.complexity > 0.6 ? I18N.t("specimen.complexHigh")
+                 : g.complexity > 0.3 ? I18N.t("specimen.complexMid")
+                 : I18N.t("specimen.complexLow");
+      ctx.font = "400 15px 'Spline Sans Mono', monospace";
+      ctx.fillStyle = "rgba(139, 163, 147, 0.8)";
+      ctx.fillText(
+        `${I18N.t("specimen.sentimentLabel").toUpperCase()}: ${senti}      ${I18N.t("specimen.complexityLabel").toUpperCase()}: ${cplx}`,
+        CW / 2, boxBottom + 180
+      );
+
+      // frase o palabra clave
+      const label = mine ? I18N.t("specimen.myPhrase") : I18N.t("specimen.pollen");
+      const text = mine ? `«${plant.phrase}»` : (g.keyword || "…");
+      ctx.fillStyle = "rgba(201, 162, 39, 0.85)";
+      ctx.font = "400 14px 'Spline Sans Mono', monospace";
+      ctx.fillText(label.toUpperCase(), CW / 2, boxBottom + 250);
+      ctx.fillStyle = "#dbe6da";
+      ctx.font = "italic 400 30px 'Italiana', serif";
+      wrapText(text, CW / 2, boxBottom + 292, CW - 260, 40);
+
+      // fecha + pie
+      const date = plant.created_at
+        ? new Date(plant.created_at).toLocaleDateString(I18N.getLang(), { day: "numeric", month: "long", year: "numeric" })
+        : new Date().toLocaleDateString(I18N.getLang(), { day: "numeric", month: "long", year: "numeric" });
+      ctx.fillStyle = "rgba(139, 163, 147, 0.7)";
+      ctx.font = "400 16px 'Figtree', sans-serif";
+      ctx.fillText(date, CW / 2, CH - 120);
+      ctx.fillStyle = "rgba(201, 162, 39, 0.6)";
+      ctx.font = "400 15px 'Spline Sans Mono', monospace";
+      ctx.fillText("animated-garden.vercel.app", CW / 2, CH - 86);
+    } finally {
+      ctx = prev;
+    }
+    return off;
+  }
+
+  function wrapText(text, cx, y, maxW, lh) {
+    const words = String(text).split(/\s+/);
+    let line = "", lines = [];
+    for (const w of words) {
+      const test = line ? line + " " + w : w;
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; }
+      else line = test;
+    }
+    if (line) lines.push(line);
+    lines = lines.slice(0, 4);
+    const startY = y - ((lines.length - 1) * lh) / 2;
+    lines.forEach((ln, i) => ctx.fillText(ln, cx, startY + i * lh));
   }
 
   /* ---------- Partículas ---------- */
@@ -2005,5 +2163,6 @@ const Garden = (() => {
     get butterflies() { return butterflies; },
     get flocks() { return flocks; },
     set forceLight(v) { _forceLight = v; },
+    renderCard,
   };
 })();

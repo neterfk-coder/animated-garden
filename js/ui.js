@@ -119,6 +119,43 @@ const UI = (() => {
     specimen.classList.remove("is-open");
   });
 
+  /* ---------- Guardar / compartir tarjeta de herbario ---------- */
+  const saveBtn = $("sp-save");
+  saveBtn.addEventListener("click", async () => {
+    if (!lastSpecimen) return;
+    const { plant } = lastSpecimen;
+    const mine = plant.mine || DB.myPlantIds.has(plant.id);
+    saveBtn.disabled = true;
+    saveBtn.removeAttribute("data-i18n");
+    saveBtn.textContent = I18N.t("specimen.saving");
+    try {
+      const cardCanvas = await Garden.renderCard(plant, { mine });
+      const blob = await new Promise((res) => cardCanvas.toBlob(res, "image/png"));
+      const safe = (plant.genome.latin || "planta").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+      const fname = `jardin-semantico-${safe}.png`;
+      const file = new File([blob], fname, { type: "image/png" });
+
+      // en móvil, compartir directo si se puede; si no, descargar
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: plant.genome.latin });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      }
+      showToast(I18N.t("specimen.saved"));
+    } catch (err) {
+      if (err && err.name === "AbortError") { /* el usuario canceló al compartir */ }
+      else { console.error(err); showToast(I18N.t("toast.error")); }
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.setAttribute("data-i18n", "specimen.save");
+      saveBtn.textContent = I18N.t("specimen.save");
+    }
+  });
+
   /* ---------- Clic en el jardín ---------- */
   document.getElementById("garden").addEventListener("click", (e) => {
     // con la regadera o las tijeras en mano, el clic es la herramienta

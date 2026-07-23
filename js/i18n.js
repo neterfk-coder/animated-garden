@@ -94,6 +94,9 @@ const I18N = (() => {
       "specimen.kinOne": "Sus raíces se entrelazan con {n} planta de significado afín.",
       "specimen.kinMany": "Sus raíces se entrelazan con {n} plantas de significado afín.",
       "specimen.close": "Cerrar ficha",
+      "specimen.save": "Guardar tarjeta ↓",
+      "specimen.saving": "Componiendo…",
+      "specimen.saved": "Tarjeta de herbario guardada.",
 
       "water.toggle": "Regadera — riega tus plantas",
       "water.pressure": "Presión del agua",
@@ -203,6 +206,9 @@ const I18N = (() => {
       "specimen.kinOne": "Its roots intertwine with {n} plant of kindred meaning.",
       "specimen.kinMany": "Its roots intertwine with {n} plants of kindred meaning.",
       "specimen.close": "Close record",
+      "specimen.save": "Save card ↓",
+      "specimen.saving": "Composing…",
+      "specimen.saved": "Herbarium card saved.",
 
       "water.toggle": "Watering can — water your plants",
       "water.pressure": "Water pressure",
