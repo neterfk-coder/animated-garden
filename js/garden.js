@@ -183,7 +183,7 @@ const Garden = (() => {
 
   /* ---------- Pasto ---------- */
   function seedGrass() {
-    const n = Math.floor(W / 4.5);
+    const n = Math.floor(W / 6);
     grass = Array.from({ length: n }, () => ({
       x: Math.random() * W,
       yOff: Math.random() * (H - groundY) * 0.45,
@@ -274,12 +274,19 @@ const Garden = (() => {
     return plant;
   }
 
-  /* ---------- Escala de una planta ---------- */
+  /* ---------- Escala de una planta ----------
+     Cacheada por frame: la misma planta se transforma decenas de
+     veces por frame (dibujo + colisiones del agua), así que se
+     calcula una sola vez por ciclo con frameId. */
+  let frameId = 0;
   function plantTransform(p) {
+    if (p._tfFrame === frameId) return p._tf;
     const desired = H * 0.16 + p.genome.height * H * 0.30;
     const raw = Math.max(24, -p.geo.bounds.minY);
     const scale = desired / raw;
-    return { baseX: p.x * W, baseY: groundY, scale };
+    p._tf = { baseX: p.x * W, baseY: groundY, scale };
+    p._tfFrame = frameId;
+    return p._tf;
   }
 
   /* ---------- Vaivén: brisa + arqueo hacia la izquierda ---------- */
@@ -288,6 +295,7 @@ const Garden = (() => {
   // se sienta solo donde de verdad cayó la gota, no en toda la planta.
   const IMPACT_LIFE = 1400;     // ms que dura la sacudida de un impacto
   const IMPACT_RADIUS = 20;     // alcance del impacto en unidades locales
+  const IMPACT_CUTOFF2 = (2.8 * 20) * (2.8 * 20);  // radio² tras el cual la onda es nula
 
   function sway(p, px, py, t, lx = 0, ly = 0) {
     if (reduceMotion) return px;
@@ -301,12 +309,14 @@ const Garden = (() => {
     let shake = 0;
     if (p.impacts && p.impacts.length) {
       for (const imp of p.impacts) {
-        const age = t - imp.t0;
-        if (age < 0 || age > IMPACT_LIFE) continue;
         const dx = lx - imp.lx, dy = ly - imp.ly;
         const dist2 = dx * dx + dy * dy;
+        // corte espacial barato: fuera de ~2.8·radio la onda es
+        // imperceptible, así se evita el Math.exp (lo más caro).
+        if (dist2 > IMPACT_CUTOFF2) continue;
+        const age = t - imp.t0;
+        if (age < 0 || age > IMPACT_LIFE) continue;
         const spatial = Math.exp(-dist2 / (2 * IMPACT_RADIUS * IMPACT_RADIUS));
-        if (spatial < 0.02) continue;
         const timeFalloff = 1 - age / IMPACT_LIFE;
         // ondulación lenta y delicada, no un temblor rápido
         shake += Math.sin(age * 0.016 + dist2 * 0.002) * imp.amp * spatial * timeFalloff * timeFalloff;
@@ -638,6 +648,13 @@ const Garden = (() => {
     const growth = easeOutCubic(Math.min(1, age / CONFIG.GERMINATION_MS));
     const budget = p.geo.totalLen * growth;
     if (budget <= 0) return;
+
+    // poda de impactos expirados una sola vez por frame, para que
+    // sway() no tenga que comprobar la edad en cada punto dibujado
+    if (p.impacts && p.impacts.length) {
+      p.impacts = p.impacts.filter((imp) => t - imp.t0 <= IMPACT_LIFE);
+      if (!p.impacts.length) p.impacts = null;
+    }
 
     // planta recién regada: reluce, sus hojas sueltan destellos de agua
     // y hace la fotosíntesis — motas de luz verde-dorada suben del follaje
@@ -1081,9 +1098,9 @@ const Garden = (() => {
     watering.tilt += (targetTilt - watering.tilt) * 0.09;
 
     // brotar agua
-    if (watering.spraying && water.length < 320) {
+    if (watering.spraying && water.length < 240) {
       const tip = spoutTip();
-      const n = 2 + Math.round(watering.pressure * 8);
+      const n = 2 + Math.round(watering.pressure * 5);
       for (let i = 0; i < n; i++) {
         const dir = Math.PI - (0.16 + (1 - watering.pressure) * 0.5)
                   + (Math.random() - 0.5) * 0.16;
@@ -1151,6 +1168,7 @@ const Garden = (() => {
     g.leafDensity = Math.min(1, g.leafDensity + 0.12);
     p.geo = LSystem.build(g);
     p.bornAt = t - CONFIG.GERMINATION_MS * 0.45;  // rebrota ante tus ojos
+    p._tfFrame = -1;   // su geometría cambió: recalcula la transformada
 
     const { baseX, baseY, scale } = plantTransform(p);
     // aro de luz en la tierra
@@ -1221,6 +1239,10 @@ const Garden = (() => {
       const segs = p.geo.segments;
       for (let i = 0; i < segs.length; i += 2) {
         const s = segs[i];
+        // descarte rápido en X: si el segmento está lejos en horizontal
+        // no hace falta la proyección completa (lo más caro del bucle)
+        if (lx < s.x1 - 6 && lx < s.x2 - 6) continue;
+        if (lx > s.x1 + 6 && lx > s.x2 + 6) continue;
         const vx = s.x2 - s.x1, vy = s.y2 - s.y1;
         const len2 = vx * vx + vy * vy || 1;
         let u = ((lx - s.x1) * vx + (ly - s.y1) * vy) / len2;
@@ -1261,7 +1283,7 @@ const Garden = (() => {
             t0: t,
             amp: 1.0 + Math.random() * 0.6,
           });
-          if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
+          if (p.impacts.length > 6) p.impacts.splice(0, p.impacts.length - 6);
 
           // el riego alimenta la planta: se acumula TIEMPO efectivo de
           // riego (no gotas, para que dé igual si la planta es fina o
@@ -1438,7 +1460,7 @@ const Garden = (() => {
     // la planta acusa el tijeretazo con una ondulación suave
     if (!p.impacts) p.impacts = [];
     p.impacts.push({ lx, ly, t0: t, amp: 1.2 });
-    if (p.impacts.length > 14) p.impacts.splice(0, p.impacts.length - 14);
+    if (p.impacts.length > 6) p.impacts.splice(0, p.impacts.length - 6);
   }
 
   function fallenWorldPoint(fb, lx, ly) {
@@ -1695,6 +1717,7 @@ const Garden = (() => {
   /* ---------- Bucle ---------- */
   function frame(now) {
     const t = now;
+    frameId++;   // invalida el caché de transformadas del frame anterior
     windNow = reduceMotion ? 0 : windField(t);
     const light = skyLight(t - startTime);
     drawSky(light);
