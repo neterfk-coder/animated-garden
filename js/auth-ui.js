@@ -60,12 +60,25 @@ const AuthUI = (() => {
 
   function translateError(err) {
     const msg = err?.message || "";
-    if (/Invalid login credentials/i.test(msg)) return I18N.t("auth.err.invalidCredentials");
-    if (/User already registered/i.test(msg)) return I18N.t("auth.err.alreadyRegistered");
-    if (/Password should be at least/i.test(msg)) return I18N.t("auth.err.weakPassword");
-    if (/is invalid/i.test(msg)) return I18N.t("auth.err.invalidEmail");
-    if (/rate limit/i.test(msg)) return I18N.t("auth.err.rateLimit");
+    const code = err?.code || "";
+    if (/Email not confirmed/i.test(msg) || code === "email_not_confirmed")
+      return I18N.t("auth.err.notConfirmed");
+    if (/Invalid login credentials/i.test(msg) || code === "invalid_credentials")
+      return I18N.t("auth.err.invalidCredentials");
+    if (/User already registered/i.test(msg) || code === "user_already_exists")
+      return I18N.t("auth.err.alreadyRegistered");
+    if (/Password should be at least/i.test(msg) || /weak.?password/i.test(code))
+      return I18N.t("auth.err.weakPassword");
+    if (/is invalid|invalid.*email|email.*invalid/i.test(msg) || code === "validation_failed")
+      return I18N.t("auth.err.invalidEmail");
+    // límites: por correos enviados o por el enfriamiento de seguridad
+    if (/rate limit|only request this after|for security purposes|too many/i.test(msg) ||
+        /rate.?limit/i.test(code))
+      return I18N.t("auth.err.rateLimit");
     if (/Supabase no configurado/i.test(msg)) return I18N.t("auth.err.noBackend");
+    if (/fetch|network|Failed to fetch/i.test(msg)) return I18N.t("auth.err.network");
+    // deja rastro del mensaje original para depurar sin mostrarlo al usuario
+    if (msg) console.warn("[auth] error sin traducir:", msg, code);
     return I18N.t("auth.err.generic");
   }
 
@@ -145,6 +158,10 @@ const AuthUI = (() => {
     setBusy(e.target, "newpass", true);
     try {
       await Auth.updatePassword(fd.get("password"));
+      recovering = false;
+      // limpia el token de la URL para que un recargado no reabra la recuperación
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      window.__recoveryLink = false;
       enterGarden();
     } catch (err) {
       setNote("newpass", translateError(err));
@@ -184,19 +201,34 @@ const AuthUI = (() => {
 
   I18N.onChange(() => updateAccountBadge(lastSession));
 
+  /* ---------- Recuperación de contraseña ----------
+     El enlace del correo crea sesión al cargar. Sin esta guarda, el
+     arranque daría por buena esa sesión y colaría al usuario al
+     jardín, dejándolo sin forma de fijar su nueva contraseña. */
+  let recovering = window.__recoveryLink === true;
+
+  function showRecovery() {
+    recovering = true;
+    UI.exitGarden();          // por si el jardín ya estaba a la vista
+    authEl.classList.remove("is-done");
+    showView("newpass");
+  }
+
   /* ---------- Arranque ---------- */
   async function init() {
     if (!Auth.hasBackend) authEl.classList.add("auth--local");
 
     Auth.onChange((event, session) => {
       updateAccountBadge(session);
-      if (event === "PASSWORD_RECOVERY") showView("newpass");
+      if (event === "PASSWORD_RECOVERY") showRecovery();
     });
 
     const session = await Auth.getSession();
     updateAccountBadge(session);
 
-    if (session || Auth.isGuest()) {
+    if (recovering) {
+      showRecovery();
+    } else if (session || Auth.isGuest()) {
       enterGarden();
     } else {
       showView("login");

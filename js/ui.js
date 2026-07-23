@@ -42,6 +42,14 @@ const UI = (() => {
     setTimeout(() => input.focus(), 900);
   }
 
+  /* Vuelve al velo de entrada (lo usa la recuperación de contraseña,
+     que puede llegar cuando el jardín ya estaba a la vista). */
+  function exitGarden() {
+    introEl.classList.remove("is-hidden");
+    document.body.classList.remove("is-entered");
+    specimen.classList.remove("is-open");
+  }
+
   /* ---------- Siembra ---------- */
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -233,5 +241,5 @@ const UI = (() => {
     }
   });
 
-  return { showToast, updateStats, openSpecimen, revealGarden };
+  return { showToast, updateStats, openSpecimen, revealGarden, exitGarden };
 })();

@@ -5,6 +5,14 @@
    SB queda en null y toda la app cae a modo local/invitado.
    ============================================================ */
 
+/* ¿Venimos del enlace de recuperación del correo? Hay que mirarlo
+   ANTES de crear el cliente: Supabase consume el hash de la URL al
+   inicializarse y lo borra, y sin este dato la app metería al
+   usuario directo al jardín sin dejarle fijar su nueva contraseña. */
+window.__recoveryLink = /(?:^|[#&?])type=recovery(?:&|$)/.test(
+  window.location.hash + "&" + window.location.search
+);
+
 const SB = (CONFIG.hasSupabase && window.supabase)
   ? window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
   : null;

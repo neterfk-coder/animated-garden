@@ -52,6 +52,8 @@ const I18N = (() => {
       "auth.guest": "Continuar como invitado →",
 
       "auth.err.invalidCredentials": "Correo o contraseña incorrectos.",
+      "auth.err.notConfirmed": "Falta confirmar tu correo: abre el enlace que te enviamos.",
+      "auth.err.network": "Sin conexión con el servidor. Revisa tu internet.",
       "auth.err.alreadyRegistered": "Ya existe una cuenta con ese correo.",
       "auth.err.weakPassword": "La contraseña debe tener al menos 6 caracteres.",
       "auth.err.invalidEmail": "Ese correo no parece válido. Prueba con otro.",
@@ -188,6 +190,8 @@ const I18N = (() => {
       "auth.guest": "Continue as guest →",
 
       "auth.err.invalidCredentials": "Incorrect email or password.",
+      "auth.err.notConfirmed": "Your email isn't confirmed yet — open the link we sent you.",
+      "auth.err.network": "Can't reach the server. Check your connection.",
       "auth.err.alreadyRegistered": "An account with that email already exists.",
       "auth.err.weakPassword": "Password must be at least 6 characters.",
       "auth.err.invalidEmail": "That email doesn't look valid. Try another one.",
