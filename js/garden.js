@@ -506,6 +506,7 @@ const Garden = (() => {
   function plantApex(p, t) {
     const { baseX, baseY, scale } = plantTransform(p);
     let apex = p.geo.segments[0];
+    if (!apex) return { x: baseX, y: baseY };   // planta cortada hasta la base
     for (const s of p.geo.segments) if (s.y2 < apex.y2) apex = s;
     return {
       x: sway(p, baseX + apex.x2 * scale, baseY + apex.y2 * scale, t, apex.x2, apex.y2),
@@ -1862,13 +1863,17 @@ const Garden = (() => {
     pruner.snipT = t;
     const tip = prunerTip();
 
-    // planta cuya caja envolvente contiene la punta, la más cercana
+    // planta cuya caja envolvente contiene la punta, la más cercana.
+    // El margen es holgado (los tallos finos —bambú, diente— tienen
+    // una caja de apenas unos píxeles y serían casi imposibles de
+    // acertar con un margen ajustado).
+    const M = 22;
     let best = null, bestD = 1e9;
     for (const p of plants) {
       const { baseX, baseY, scale } = plantTransform(p);
       const bb = p.geo.bounds;
-      if (tip.x < baseX + bb.minX * scale - 10 || tip.x > baseX + bb.maxX * scale + 10) continue;
-      if (tip.y < baseY + bb.minY * scale - 10 || tip.y > baseY + 4) continue;
+      if (tip.x < baseX + bb.minX * scale - M || tip.x > baseX + bb.maxX * scale + M) continue;
+      if (tip.y < baseY + bb.minY * scale - M || tip.y > baseY + 4) continue;
       const d = Math.abs(tip.x - baseX);
       if (d < bestD) { bestD = d; best = { p, baseX, baseY, scale }; }
     }
@@ -1879,48 +1884,91 @@ const Garden = (() => {
             baseX, baseY, scale, t);
   }
 
-  // corta todo lo que quede dentro de un radio del punto de corte —
-  // se desprende como una rama entera y coherente, no motas sueltas.
+  // Corta por un punto y deja caer TODO lo que quedó por encima del
+  // corte: no un círculo, sino el subárbol que colgaba de ahí. Al
+  // perder su sostén, esa parte entera cae al suelo por gravedad —
+  // como una rama de verdad, no un trozo suspendido en el aire.
   function cutFrom(p, lx, ly, R, baseX, baseY, scale, t) {
-    const R2 = R * R;
     const geo = p.geo;
+    const segs = geo.segments;
+    if (!segs.length) return;
 
-    const near = (o, extra = 0) => {
-      const dx = o.x - lx, dy = o.y - ly;
-      return dx * dx + dy * dy < R2 + extra;
+    // 1) tallo más cercano a la punta de la tijera — distancia real al
+    //    segmento (no a su punto medio), para acertar aunque el tallo
+    //    sea largo y el corte caiga cerca de un extremo.
+    let cutIdx = -1, bestD = Infinity;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      const vx = s.x2 - s.x1, vy = s.y2 - s.y1;
+      const len2 = vx * vx + vy * vy || 1;
+      let u = ((lx - s.x1) * vx + (ly - s.y1) * vy) / len2;
+      u = u < 0 ? 0 : u > 1 ? 1 : u;
+      const dx = lx - (s.x1 + vx * u), dy = ly - (s.y1 + vy * u);
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; cutIdx = i; }
+    }
+    // la punta quedó lejos de cualquier tallo: no hay nada que cortar
+    if (cutIdx < 0 || bestD > (R * 3) * (R * 3)) return;
+
+    // 2) conectividad: un segmento "hijo" arranca donde otro termina.
+    //    El intérprete tortuga comparte coordenadas exactas, así que
+    //    una clave por punto basta para reconstruir el árbol.
+    const key = (x, y) => Math.round(x * 50) + ":" + Math.round(y * 50);
+    const startMap = new Map();
+    for (let i = 0; i < segs.length; i++) {
+      const k = key(segs[i].x1, segs[i].y1);
+      let arr = startMap.get(k);
+      if (!arr) { arr = []; startMap.set(k, arr); }
+      arr.push(i);
+    }
+
+    // 3) subárbol del corte: el segmento cortado y todo lo que crece
+    //    hacia afuera desde él (más lejos del suelo). Eso es lo que cae.
+    const removed = new Set();
+    const stack = [cutIdx];
+    while (stack.length) {
+      const i = stack.pop();
+      if (removed.has(i)) continue;
+      removed.add(i);
+      const s = segs[i];
+      const kids = startMap.get(key(s.x2, s.y2));
+      if (kids) for (const c of kids) if (!removed.has(c)) stack.push(c);
+    }
+
+    // 4) el follaje viaja con el tallo del que cuelga (extremo más cercano)
+    const fellWith = (o) => {
+      let d = Infinity, gone = false;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        const dx = o.x - s.x2, dy = o.y - s.y2;
+        const dd = dx * dx + dy * dy;
+        if (dd < d) { d = dd; gone = removed.has(i); }
+      }
+      return gone;
     };
 
     const cutSegs = [], cutLeaves = [], cutBlooms = [], cutSpines = [];
-    geo.segments = geo.segments.filter((s) => {
-      const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
-      if (near({ x: mx, y: my })) { cutSegs.push(s); return false; }
-      return true;
-    });
-    geo.leaves = geo.leaves.filter((l) => {
-      if (near(l, 12)) { cutLeaves.push(l); return false; }
-      return true;
-    });
-    geo.blooms = geo.blooms.filter((b) => {
-      if (near(b, 12)) { cutBlooms.push(b); return false; }
-      return true;
-    });
-    geo.spines = geo.spines.filter((sp) => {
-      if (near(sp, 12)) { cutSpines.push(sp); return false; }
-      return true;
-    });
+    geo.segments = segs.filter((s, i) => (removed.has(i) ? (cutSegs.push(s), false) : true));
+    geo.leaves = geo.leaves.filter((l) => (fellWith(l) ? (cutLeaves.push(l), false) : true));
+    geo.blooms = geo.blooms.filter((b) => (fellWith(b) ? (cutBlooms.push(b), false) : true));
+    geo.spines = geo.spines.filter((sp) => (fellWith(sp) ? (cutSpines.push(sp), false) : true));
 
     if (!cutSegs.length && !cutLeaves.length && !cutBlooms.length && !cutSpines.length) return;
 
-    // la pieza cortada guarda sus formas relativas al punto de corte
-    // (pivote), para caer y girar como un objeto rígido
+    // altura de la pieza: las ramas altas vuelcan más al caer
+    let topY = 0;
+    for (const s of cutSegs) topY = Math.min(topY, s.y1 - ly, s.y2 - ly);
+    const tall = Math.min(1, (-topY * scale) / 160);
+
+    // la pieza guarda sus formas relativas al punto de corte (pivote)
     fallenBranches.push({
       genome: p.genome,
       scale,
       x: baseX + lx * scale, y: baseY + ly * scale,
       rot: 0,
-      vx: (Math.random() - 0.5) * 0.35 + windNow * 0.5,
-      vy: 0.12 + Math.random() * 0.12,
-      vr: (Math.random() - 0.5) * 0.045,
+      vx: (Math.random() - 0.5) * 0.5 + windNow * 0.4,
+      vy: 0.05 + Math.random() * 0.1,
+      vr: (Math.random() < 0.5 ? -1 : 1) * (0.01 + tall * 0.05),  // vuelca según su altura
       landed: false, restT: 0, life: 1,
       segments: cutSegs.map((s) => ({
         x1: s.x1 - lx, y1: s.y1 - ly, x2: s.x2 - lx, y2: s.y2 - ly, w: s.w, hook: s.hook,
