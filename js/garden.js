@@ -342,30 +342,38 @@ const Garden = (() => {
 
   function sway(p, px, py, t, lx = 0, ly = 0) {
     if (reduceMotion) return px;
-    const heightFactor = Math.max(0, (groundY - py)) / H;
-    const flutter = Math.sin(t * 0.0011 + p.phase + (groundY - py) * 0.012);
-    const bend = windNow * 16 * Math.pow(heightFactor, 1.25) * (1 + p.genome.complexity * 0.5);
+    const hAbove = groundY - py;
 
-    // sacudida localizada: cada gota que golpeó la planta deja una
-    // pequeña onda que se atenúa con la distancia (al punto exacto
-    // del impacto) y con el tiempo transcurrido.
+    // impactos del agua (casi siempre lista vacía, así que 0 coste)
     let shake = 0;
     if (p.impacts && p.impacts.length) {
       for (const imp of p.impacts) {
         const dx = lx - imp.lx, dy = ly - imp.ly;
         const dist2 = dx * dx + dy * dy;
-        // corte espacial barato: fuera de ~2.8·radio la onda es
-        // imperceptible, así se evita el Math.exp (lo más caro).
-        if (dist2 > IMPACT_CUTOFF2) continue;
+        if (dist2 > IMPACT_CUTOFF2) continue;   // fuera de alcance: sin Math.exp
         const age = t - imp.t0;
         if (age < 0 || age > IMPACT_LIFE) continue;
         const spatial = Math.exp(-dist2 / (2 * IMPACT_RADIUS * IMPACT_RADIUS));
         const timeFalloff = 1 - age / IMPACT_LIFE;
-        // ondulación lenta y delicada, no un temblor rápido
         shake += Math.sin(age * 0.016 + dist2 * 0.002) * imp.amp * spatial * timeFalloff * timeFalloff;
       }
     }
-    return px + bend + shake + flutter * 5 * heightFactor * (1 - windNow * 0.5);
+
+    // la base apenas se mueve: nos ahorramos pow+sin en muchos puntos
+    if (hAbove < 18) return px + shake;
+
+    // constantes de viento por planta, calculadas una vez por frame
+    if (p._swFrame !== frameId) {
+      p._swFrame = frameId;
+      p._swBend = windNow * 16 * (1 + p.genome.complexity * 0.5);
+      p._swFlPhase = t * 0.0011 + p.phase;
+      p._swFlAmp = 5 * (1 - windNow * 0.5);
+    }
+    const heightFactor = hAbove / H;
+    // pow(h,1.25) = h·⁴√h, más barato que Math.pow
+    const hf125 = heightFactor * Math.sqrt(Math.sqrt(heightFactor));
+    const flutter = Math.sin(p._swFlPhase + hAbove * 0.012);
+    return px + p._swBend * hf125 + flutter * p._swFlAmp * heightFactor + shake;
   }
 
   /* ---------- Ciclo día/noche del invernadero ---------- */
@@ -829,45 +837,57 @@ const Garden = (() => {
 
     ctx.lineCap = "round";
 
+    // color del tallo una sola vez por planta (los ganchos, raros, van aparte)
+    const stemCol = stemColor(p.genome, light);
+    const full = growth >= 1;   // planta crecida: sin segmentos parciales
+
     // tallos
     for (const s of p.geo.segments) {
-      if (s.cum > budget + 0.001) {
-        // segmento parcial (el brote que está creciendo ahora mismo)
+      let x2r = s.x2, y2r = s.y2;
+      if (!full && s.cum > budget + 0.001) {
         const prev = s.cum - Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
         if (prev >= budget) continue;
         const f = (budget - prev) / (s.cum - prev);
-        const x2 = s.x1 + (s.x2 - s.x1) * f;
-        const y2 = s.y1 + (s.y2 - s.y1) * f;
-        strokeSeg(p, s, x2, y2, baseX, baseY, scale, t, light);
-        continue;
+        x2r = s.x1 + (s.x2 - s.x1) * f;
+        y2r = s.y1 + (s.y2 - s.y1) * f;
       }
-      strokeSeg(p, s, s.x2, s.y2, baseX, baseY, scale, t, light);
+      const x1 = sway(p, baseX + s.x1 * scale, baseY + s.y1 * scale, t, s.x1, s.y1);
+      const y1 = baseY + s.y1 * scale;
+      const x2 = sway(p, baseX + x2r * scale, baseY + y2r * scale, t, x2r, y2r);
+      const y2 = baseY + y2r * scale;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = s.hook ? "rgba(227, 199, 102, 0.85)" : stemCol;
+      ctx.lineWidth = Math.max(0.7, s.w * scale * 0.5);
+      ctx.stroke();
     }
 
-    // hojas
+    // hojas — dibujadas con la rotación nativa de ellipse (sin
+    // save/translate/rotate/restore por hoja: miles de cambios de
+    // estado del canvas menos con muchas plantas)
+    const isLoto = p.genome.species === "loto";
+    const L = 5.5 * scale * (isLoto ? 1.45 : 0.9);
+    const LR = L * (isLoto ? 0.62 : 0.36);
+    ctx.fillStyle = leafColor(p.genome, p.genome.leafAlpha * (0.7 + light * 0.3));
     for (const l of p.geo.leaves) {
       if (l.cum > budget) continue;
-      const lx = baseX + l.x * scale, ly = baseY + l.y * scale;
-      const sx = sway(p, lx, ly, t, l.x, l.y);
-      ctx.save();
-      ctx.translate(sx, ly);
-      ctx.rotate(l.a + (reduceMotion ? 0 : Math.sin(t * 0.0013 + l.x) * 0.08 + windNow * 0.10));
+      const ly = baseY + l.y * scale;
+      const sx = sway(p, baseX + l.x * scale, ly, t, l.x, l.y);
+      const a = l.a + (reduceMotion ? 0 : Math.sin(t * 0.0013 + l.x) * 0.08 + windNow * 0.10);
+      const off = L * 0.6, ca = Math.cos(a), sa = Math.sin(a);
       ctx.beginPath();
-      const isLoto = p.genome.species === "loto";
-      const L = 5.5 * scale * (isLoto ? 1.45 : 0.9);
-      ctx.ellipse(L * 0.6, 0, L, L * (isLoto ? 0.62 : 0.36), 0, 0, Math.PI * 2);
-      ctx.fillStyle = leafColor(p.genome, p.genome.leafAlpha * (0.7 + light * 0.3));
+      ctx.ellipse(sx + ca * off, ly + sa * off, L, LR, a, 0, Math.PI * 2);
       ctx.fill();
       if (isLoto) {
-        // hendidura del nenúfar
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(L * 1.2, 0);
+        ctx.moveTo(sx, ly);
+        ctx.lineTo(sx + ca * L * 1.2, ly + sa * L * 1.2);
         ctx.strokeStyle = `rgba(16, 30, 22, ${0.35 * p.genome.leafAlpha})`;
         ctx.lineWidth = 0.9;
         ctx.stroke();
+        ctx.fillStyle = leafColor(p.genome, p.genome.leafAlpha * (0.7 + light * 0.3));
       }
-      ctx.restore();
     }
 
     // espinas (cactus y rosal)
@@ -932,19 +952,6 @@ const Garden = (() => {
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
-  }
-
-  function strokeSeg(p, s, x2raw, y2raw, baseX, baseY, scale, t, light) {
-    const x1 = sway(p, baseX + s.x1 * scale, baseY + s.y1 * scale, t, s.x1, s.y1);
-    const y1 = baseY + s.y1 * scale;
-    const x2 = sway(p, baseX + x2raw * scale, baseY + y2raw * scale, t, x2raw, y2raw);
-    const y2 = baseY + y2raw * scale;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.strokeStyle = s.hook ? "rgba(227, 199, 102, 0.85)" : stemColor(p.genome, light);
-    ctx.lineWidth = Math.max(0.7, s.w * scale * 0.5);
-    ctx.stroke();
   }
 
   /* ---------- Planta estática (para la tarjeta de herbario) ----------
