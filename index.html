@@ -21,6 +21,16 @@
     <button type="button" data-lang="en">EN</button>
   </div>
 
+  <!-- Statement de artista -->
+  <button class="manifesto-toggle" id="manifesto-toggle" type="button"
+          data-i18n-title="manifesto.open" title="Sobre esta obra">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/>
+    </svg>
+  </button>
+
   <!-- Clima emocional colectivo -->
   <button class="climate-toggle" id="climate-toggle" type="button" aria-pressed="false"
           data-i18n-title="climate.toggle" title="Clima emocional del jardín">
@@ -118,6 +128,8 @@
           <button type="button" class="auth__guest" id="auth-guest" data-i18n="auth.guest">Continuar como invitado →</button>
         </div>
       </div>
+
+      <button type="button" class="intro__manifesto" id="manifesto-open-intro" data-i18n="manifesto.open">Sobre esta obra</button>
     </div>
   </div>
 
@@ -241,6 +253,27 @@
       <p class="climate__hint" data-i18n="climate.hint">Los hilos dorados unen frases de significado afín, escritas por personas distintas.</p>
     </div>
   </aside>
+
+  <!-- Statement de artista -->
+  <div class="manifesto" id="manifesto" role="dialog" aria-modal="true" aria-labelledby="mf-title">
+    <div class="manifesto__sheet">
+      <button class="manifesto__close" id="manifesto-close" data-i18n-aria-label="manifesto.close" aria-label="Cerrar">×</button>
+      <p class="manifesto__tag" data-i18n="manifesto.tag">Statement</p>
+      <h2 class="manifesto__title" id="mf-title" data-i18n="manifesto.title">Jardín Semántico</h2>
+      <p class="manifesto__lede" data-i18n="manifesto.lede">Un invernadero donde no se plantan semillas: se plantan frases.</p>
+
+      <h3 data-i18n="manifesto.h1">El gesto</h3>
+      <p data-i18n="manifesto.p1"></p>
+      <h3 data-i18n="manifesto.h2">Lo que la máquina no entiende</h3>
+      <p data-i18n="manifesto.p2"></p>
+      <h3 data-i18n="manifesto.h3">Nadie planta la misma flor</h3>
+      <p data-i18n="manifesto.p3"></p>
+      <h3 data-i18n="manifesto.h4">Raíces que no sabías que tenías</h3>
+      <p data-i18n="manifesto.p4"></p>
+      <h3 data-i18n="manifesto.h5">Cuidar lo ajeno</h3>
+      <p data-i18n="manifesto.p5"></p>
+    </div>
+  </div>
 
   <!-- Aviso de germinación -->
   <div class="toast" id="toast" role="status"></div>

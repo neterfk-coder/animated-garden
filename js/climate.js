@@ -68,3 +68,37 @@ const Climate = (() => {
 
   return { get open() { return open; }, setOpen };
 })();
+
+/* ============================================================
+   STATEMENT — el texto que enmarca la obra. Accesible desde el
+   velo de entrada (lo primero que ve quien llega) y desde el
+   jardín, sin interrumpir la experiencia.
+   ============================================================ */
+const Manifesto = (() => {
+  const sheet = document.getElementById("manifesto");
+  const openers = [
+    document.getElementById("manifesto-open-intro"),
+    document.getElementById("manifesto-toggle"),
+  ].filter(Boolean);
+  let last = null;
+
+  function setOpen(v) {
+    sheet.classList.toggle("is-open", v);
+    if (v) {
+      last = document.activeElement;
+      sheet.querySelector(".manifesto__sheet").scrollTop = 0;
+      document.getElementById("manifesto-close").focus();
+    } else if (last) {
+      last.focus();
+    }
+  }
+
+  openers.forEach((b) => b.addEventListener("click", () => setOpen(true)));
+  document.getElementById("manifesto-close").addEventListener("click", () => setOpen(false));
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) setOpen(false); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && sheet.classList.contains("is-open")) setOpen(false);
+  });
+
+  return { setOpen };
+})();

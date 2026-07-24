@@ -48,7 +48,8 @@ html, body {
   position: fixed;
   top: 1.4rem;
   right: 1.6rem;
-  z-index: 70;
+  /* por encima del statement: se puede cambiar de idioma leyéndolo */
+  z-index: 90;
   display: flex;
   gap: 0.15rem;
   background: var(--glass);
@@ -77,6 +78,142 @@ html, body {
   background: rgba(201, 162, 39, 0.16);
 }
 .lang-switch button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* ---------- Statement de artista ---------- */
+.intro__manifesto {
+  display: block;
+  margin: 1.4rem auto 0;
+  background: none;
+  border: none;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid transparent;
+  transition: color 0.3s, border-color 0.3s;
+}
+.intro__manifesto:hover { color: var(--brass-soft); border-bottom-color: rgba(201, 162, 39, 0.45); }
+.intro__manifesto:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+.manifesto-toggle {
+  position: fixed;
+  left: 1.6rem;
+  bottom: 8.4rem;
+  z-index: 70;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: color 0.3s, border-color 0.3s, box-shadow 0.3s,
+              opacity 0.9s var(--ease-soft) 1.2s, transform 0.9s var(--ease-soft) 1.2s;
+  pointer-events: none;
+}
+body.is-entered .manifesto-toggle { opacity: 1; transform: none; pointer-events: auto; }
+.manifesto-toggle:hover { color: var(--brass-soft); border-color: rgba(201, 162, 39, 0.45); }
+.manifesto-toggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+.manifesto {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  background: rgba(4, 9, 7, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s var(--ease-soft), visibility 0.5s;
+}
+.manifesto.is-open { opacity: 1; visibility: visible; }
+.manifesto__sheet {
+  position: relative;
+  width: min(660px, 100%);
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(127, 169, 142, 0.06), transparent 60%),
+    var(--glass-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(201, 162, 39, 0.28);
+  border-radius: var(--radius);
+  padding: 2.6rem 2.4rem 2.4rem;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6);
+  transform: translateY(16px) scale(0.985);
+  transition: transform 0.6s var(--ease-soft);
+}
+.manifesto.is-open .manifesto__sheet { transform: none; }
+.manifesto__close {
+  position: absolute;
+  top: 0.9rem; right: 1.1rem;
+  background: none; border: none;
+  color: var(--ink-dim);
+  font-size: 1.5rem; line-height: 1;
+  cursor: pointer; padding: 0.2rem;
+  transition: color 0.25s;
+}
+.manifesto__close:hover { color: var(--ink); }
+.manifesto__close:focus-visible { outline: 2px solid var(--brass); border-radius: 4px; }
+.manifesto__tag {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin-bottom: 0.9rem;
+}
+.manifesto__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.1rem, 5vw, 2.9rem);
+  line-height: 1.05;
+  color: var(--ink);
+  margin-bottom: 0.6rem;
+}
+.manifesto__lede {
+  font-style: italic;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--verdigris);
+  padding-bottom: 1.4rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+.manifesto__sheet h3 {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.66rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--brass-soft);
+  margin: 1.7rem 0 0.6rem;
+}
+.manifesto__sheet p:not(.manifesto__lede):not(.manifesto__tag) {
+  font-size: 0.94rem;
+  line-height: 1.78;
+  color: var(--ink);
+  font-weight: 300;
+}
+
+@media (max-width: 640px) {
+  .manifesto__sheet { padding: 2rem 1.4rem 1.8rem; }
+  .manifesto-toggle { bottom: auto; top: 4.4rem; left: 1rem; }
+}
 
 /* ---------- Clima emocional colectivo ---------- */
 .climate-toggle {
