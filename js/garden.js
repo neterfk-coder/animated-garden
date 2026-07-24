@@ -29,7 +29,10 @@ const Garden = (() => {
   let butterflies = [];   // mariposas que vuelan en manada
   let flocks = [];        // centros de manada que deambulan por el jardín
   let startTime = performance.now();
-  let showConstellation = false;   // vista de clima emocional
+  // Constelación: opacidad continua para poder respirar (aparecer y
+  // desvanecerse) además de encenderse desde la vista de clima.
+  let constAlpha = 0, constTarget = 0;
+  let revealTimer = null;
   let _forceLight = null; // override del ciclo día/noche (pruebas/depuración)
   let windNow = -0.7;     // negativo = hacia la izquierda
   let gustNow = 0;        // 0..1, intensidad de la corriente de aire marcada
@@ -510,9 +513,9 @@ const Garden = (() => {
     };
   }
 
-  function drawConstellation(t) {
+  function drawConstellation(t, k = 1) {
     if (!kinLinks.length) return;
-    const pulse = 0.6 + 0.4 * Math.sin(t * 0.0016);
+    const pulse = (0.6 + 0.4 * Math.sin(t * 0.0016)) * k;
     for (const link of kinLinks) {
       const pa = plants[link.a], pb = plants[link.b];
       if (!pa || !pb) continue;
@@ -2209,7 +2212,9 @@ const Garden = (() => {
     drawPollen(t, light);
     drawFallenBranches(t);
     drawAirCurrents(t);
-    if (showConstellation) drawConstellation(t);
+    // la constelación entra y sale con suavidad, nunca de golpe
+    constAlpha += (constTarget - constAlpha) * 0.028;
+    if (constAlpha > 0.012) drawConstellation(t, constAlpha);
     updateWatering(t);
     drawWater(t);
     drawWateringCan(t);
@@ -2243,8 +2248,21 @@ const Garden = (() => {
     get butterflies() { return butterflies; },
     get flocks() { return flocks; },
     set forceLight(v) { _forceLight = v; },
-    set constellation(v) { showConstellation = !!v; },
-    get constellation() { return showConstellation; },
+    set constellation(v) {
+      clearTimeout(revealTimer);
+      constTarget = v ? 1 : 0;
+    },
+    get constellation() { return constTarget > 0.5; },
+    /* Respiración: muestra los hilos unos segundos y los deja ir, para
+       que cualquiera vea la trama colectiva sin tener que buscarla. */
+    revealConstellation(holdMs = 4200) {
+      if (!kinLinks.length) return false;
+      clearTimeout(revealTimer);
+      constTarget = 1;
+      revealTimer = setTimeout(() => { constTarget = 0; }, holdMs);
+      return true;
+    },
+    get kinCount() { return kinLinks.length; },
     climate,
     renderCard,
   };

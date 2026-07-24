@@ -40,6 +40,21 @@ const UI = (() => {
     introEl.classList.add("is-hidden");
     document.body.classList.add("is-entered");
     setTimeout(() => input.focus(), 900);
+
+    /* Lo más singular del jardín —que frases de desconocidos ya estén
+       entrelazadas— vivía escondido tras un botón. Al entrar, los hilos
+       se muestran solos unos segundos y se desvanecen: nadie se pierde
+       la trama colectiva por no ir a buscarla. */
+    let tries = 0;
+    const breathe = () => {
+      if (typeof Climate !== "undefined" && Climate.open) return;  // el panel manda
+      if (Garden.revealConstellation(4200)) {
+        showToast(I18N.t("toast.constellationHint"), 5200);
+      } else if (++tries < 6) {
+        setTimeout(breathe, 900);                        // aún cargando plantas
+      }
+    };
+    setTimeout(breathe, 2300);
   }
 
   /* Vuelve al velo de entrada (lo usa la recuperación de contraseña,

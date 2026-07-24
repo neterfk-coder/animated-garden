@@ -79,6 +79,7 @@ const I18N = (() => {
       "toast.germinated": "Germinó {latin} — {species}.",
       "toast.error": "Algo impidió la germinación. Inténtalo de nuevo.",
       "toast.someone": "Alguien plantó {latin} en el jardín.",
+      "toast.constellationHint": "Los hilos dorados unen frases afines de personas distintas, sin que ellas lo sepan.",
 
       "specimen.tag": "Ficha de herbario",
       "specimen.sentimentLabel": "Sentimiento",
@@ -233,6 +234,7 @@ const I18N = (() => {
       "toast.germinated": "{latin} germinated — {species}.",
       "toast.error": "Something stopped the germination. Try again.",
       "toast.someone": "Someone planted {latin} in the garden.",
+      "toast.constellationHint": "Golden threads link kindred sentences by different people, without their knowing.",
 
       "specimen.tag": "Herbarium record",
       "specimen.sentimentLabel": "Mood",
